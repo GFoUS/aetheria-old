@@ -4,11 +4,16 @@
 #include "vulkan/vulkan.h"
 
 #include "device.h"
+#include "image.h"
 #include "graphics/window.h"
 
 typedef struct {
     VkSwapchainKHR swapchain;
+    VkExtent2D extent;
+    VkFormat format;
     
+    u32 numImages;
+    vulkan_image** images;
     vulkan_device* device;
 } vulkan_swapchain;
 

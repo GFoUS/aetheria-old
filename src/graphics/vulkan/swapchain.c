@@ -37,6 +37,8 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_device* device, window* win, Vk
 
     VkSurfaceFormatKHR format = _pick_format(device->physical->swapchain_details.numFormats, device->physical->swapchain_details.formats);
 
+    VkExtent2D extent = _pick_extent(&device->physical->swapchain_details.capabilities, win);
+
     VkSwapchainCreateInfoKHR createInfo;
     CLEAR_MEMORY(&createInfo);
 
@@ -45,7 +47,7 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_device* device, window* win, Vk
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = format.format;
     createInfo.imageColorSpace = format.colorSpace;
-    createInfo.imageExtent = _pick_extent(&device->physical->swapchain_details.capabilities, win);
+    createInfo.imageExtent = extent;
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -66,16 +68,30 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_device* device, window* win, Vk
 
     vulkan_swapchain* swapchain = malloc(sizeof(vulkan_swapchain));
     swapchain->device = device;
+    swapchain->extent = extent;
+    swapchain->format = format.format;
 
     VkResult result = vkCreateSwapchainKHR(device->device, &createInfo, NULL, &swapchain->swapchain);
     if (result != VK_SUCCESS) {
         FATAL("Swapchain creation failed with error code &d", result);
     }
 
+    vkGetSwapchainImagesKHR(device->device, swapchain->swapchain, &swapchain->numImages, NULL);
+    VkImage* images = malloc(sizeof(VkImage) * swapchain->numImages);
+    swapchain->images = malloc(sizeof(vulkan_image*) * swapchain->numImages);
+    vkGetSwapchainImagesKHR(device->device, swapchain->swapchain, &swapchain->numImages, images);
+
+    for (u32 i = 0; i < swapchain->numImages; i++) {
+        swapchain->images[i] = vulkan_image_create_from_image(images[i], swapchain->format, swapchain->extent.width, swapchain->extent.height);
+    }
+
+    free(images);
+
     return swapchain;
 }
 
 void vulkan_swapchain_destroy(vulkan_swapchain* swapchain) {
     vkDestroySwapchainKHR(swapchain->device->device, swapchain->swapchain, NULL);
+    free(swapchain->images);
     free(swapchain);
 }
