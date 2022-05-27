@@ -1,34 +1,31 @@
 #include "device.h"
 
 vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_device* physical, u32 numExtensions, const char** extensions, u32 numLayers, const char** layers) {
-    // Check extensions
-    u32 numAvailableExtensions;
-    vkEnumerateDeviceExtensionProperties(physical->physical, NULL, &numAvailableExtensions, NULL);
-    VkExtensionProperties* availableExtensions = malloc(sizeof(VkExtensionProperties) * numAvailableExtensions);
-    vkEnumerateDeviceExtensionProperties(physical->physical, NULL, &numAvailableExtensions, availableExtensions);
+    // Graphics queue info
+    u32 queueIndexUsage[256];
+    CLEAR_MEMORY_ARRAY(queueIndexUsage, 256);
+    queueIndexUsage[physical->queues.graphicsIndex]++;
+    queueIndexUsage[physical->queues.presentIndex]++;
 
-    for (u32 i = 0; i < numExtensions; i++) {
-        bool found = false;
-        for (u32 j = 0; j < numAvailableExtensions; j++) {
-            if (strcmp(extensions[i], availableExtensions[j].extensionName) == 0) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            FATAL("Missing device extension: %s", extensions[i]);
+    u32 uniqueQueueIndices[256];
+    u32 numUniqueQueueIndices = 0;
+    CLEAR_MEMORY_ARRAY(uniqueQueueIndices, 256);
+    for (u32 i = 0; i < 256; i++) {
+        if (queueIndexUsage[i] != 0) {
+            uniqueQueueIndices[numUniqueQueueIndices++] = i;
         }
     }
 
-    // Graphics queue info
-    VkDeviceQueueCreateInfo queueInfo;
-    CLEAR_MEMORY(&queueInfo);
-
-    float priorites[1] = { 1.0f };
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueInfo.queueFamilyIndex = physical->queues.graphicsIndex;
-    queueInfo.queueCount = 1;
-    queueInfo.pQueuePriorities = priorites;
+    VkDeviceQueueCreateInfo* queueInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * numUniqueQueueIndices);
+    CLEAR_MEMORY_ARRAY(queueInfos, numUniqueQueueIndices);
+    for (u32 i = 0; i < numUniqueQueueIndices; i++) {
+        float priorites[1] = { 1.0f };
+        queueInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueInfos[i].queueFamilyIndex = physical->queues.graphicsIndex;
+        queueInfos[i].queueCount = 1;
+        queueInfos[i].pQueuePriorities = priorites;
+    }
+    
 
     // Device create info
     VkDeviceCreateInfo createInfo;
@@ -39,8 +36,8 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
     createInfo.ppEnabledExtensionNames = extensions;
     createInfo.enabledLayerCount = numLayers;
     createInfo.ppEnabledLayerNames = layers;
-    createInfo.queueCreateInfoCount = 1;
-    createInfo.pQueueCreateInfos = &queueInfo;
+    createInfo.queueCreateInfoCount = numUniqueQueueIndices;
+    createInfo.pQueueCreateInfos = queueInfos;
 
     vulkan_device* device = malloc(sizeof(vulkan_device));
     VkResult result = vkCreateDevice(physical->physical, &createInfo, NULL, &device->device);
@@ -49,6 +46,9 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
     }
 
     vkGetDeviceQueue(device->device, physical->queues.graphicsIndex, 0, &device->graphics);
+    vkGetDeviceQueue(device->device, physical->queues.presentIndex, 0, &device->present);
+
+    device->physical = physical;
 
     return device;
 }

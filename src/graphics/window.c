@@ -19,13 +19,14 @@ void window_system_cleanup() {
 window* window_create(window_config* config) {
 	window* win = malloc(sizeof(win));
 
-	INFO("Window created");
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	win->window = glfwCreateWindow(config->width, config->height, config->title, NULL, NULL);
 	if (!win->window)
 	{
 		glfwTerminate();
 		FATAL("GLFW window creation failed");
 	}
+	INFO("Window created");
 
 	glfwSetKeyCallback(win->window, config->keyboardCallback);
 
