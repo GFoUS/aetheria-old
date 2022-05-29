@@ -19,7 +19,7 @@ vulkan_shader* vulkan_shader_load_from_file(vulkan_device* device, const char* p
 
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = shaderFileSize;
-    createInfo.pCode = shaderCode;
+    createInfo.pCode = (u32*)shaderCode;
 
     vulkan_shader* shader = malloc(sizeof(vulkan_shader));
     shader->device = device;
