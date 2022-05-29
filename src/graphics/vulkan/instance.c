@@ -40,6 +40,9 @@ vulkan_instance* vulkan_instance_create(u32 numExtensions, const char** extensio
 		}
 	}
 
+	free(availableLayers);
+	free(availableExtensions);
+
 	VkApplicationInfo appInfo;
 	CLEAR_MEMORY(&appInfo);
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;

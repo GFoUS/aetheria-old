@@ -35,4 +35,5 @@ window* window_create(window_config* config) {
 
 void window_destroy(window* win) {
 	glfwDestroyWindow(win->window);
+	free(win);
 }

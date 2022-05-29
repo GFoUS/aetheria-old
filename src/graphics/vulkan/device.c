@@ -25,7 +25,6 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
         queueInfos[i].queueCount = 1;
         queueInfos[i].pQueuePriorities = priorites;
     }
-    
 
     // Device create info
     VkDeviceCreateInfo createInfo;
@@ -44,6 +43,7 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
     if (result != VK_SUCCESS) {
         FATAL("Vulkan device creation failed with error code %d", result);
     }
+    free(queueInfos);
 
     vkGetDeviceQueue(device->device, physical->queues.graphicsIndex, 0, &device->graphics);
     vkGetDeviceQueue(device->device, physical->queues.presentIndex, 0, &device->present);

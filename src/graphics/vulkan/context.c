@@ -18,6 +18,7 @@ vulkan_context* vulkan_context_create(window* win)
 	const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 	ctx->instance =  vulkan_instance_create(numExtensions, extensions, 1, layers);
 	INFO("Created vulkan instance");
+	free(extensions);
 
 	VkResult surfaceResult = glfwCreateWindowSurface(ctx->instance->instance, ctx->win->window, NULL, &ctx->surface);
 	if (surfaceResult != VK_SUCCESS) {

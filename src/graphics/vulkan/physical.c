@@ -34,6 +34,7 @@ vulkan_physical_device* _get_all(vulkan_instance* instance, VkSurfaceKHR surface
                 physicalDevices[i].queues.presentIndex = j;
             }
         }
+        free(queueFamilies);
 
         // Get swapchain info
         vulkan_physical_device_swapchain_details* swapchain_details = &physicalDevices[i].swapchain_details;
@@ -47,6 +48,8 @@ vulkan_physical_device* _get_all(vulkan_instance* instance, VkSurfaceKHR surface
         physicalDevices[i].swapchain_details.modes = malloc(sizeof(VkPresentModeKHR) * swapchain_details->numModes);
         vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevices[i].physical, surface, &swapchain_details->numModes, swapchain_details->modes);
     }
+
+    free(vkPhysicalDevices);
 
     return physicalDevices;
 }
@@ -70,6 +73,8 @@ bool _has_extensions(vulkan_physical_device* physical, u32 numExtensions, const 
             return false;
         }
     }
+    free(availableExtensions);
+
     return true;
 }
 

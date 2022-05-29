@@ -82,7 +82,7 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_device* device, window* win, Vk
     vkGetSwapchainImagesKHR(device->device, swapchain->swapchain, &swapchain->numImages, images);
 
     for (u32 i = 0; i < swapchain->numImages; i++) {
-        swapchain->images[i] = vulkan_image_create_from_image(images[i], swapchain->format, swapchain->extent.width, swapchain->extent.height);
+        swapchain->images[i] = vulkan_image_create_from_image(device, images[i], swapchain->format, swapchain->extent.width, swapchain->extent.height, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     free(images);
@@ -92,6 +92,9 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_device* device, window* win, Vk
 
 void vulkan_swapchain_destroy(vulkan_swapchain* swapchain) {
     vkDestroySwapchainKHR(swapchain->device->device, swapchain->swapchain, NULL);
+    for (u32 i = 0; i < swapchain->numImages; i++) {
+        vulkan_image_destroy(swapchain->images[i]);
+    } 
     free(swapchain->images);
     free(swapchain);
 }
