@@ -4,6 +4,6 @@
 [submodule "vendor/VulkanMemoryAllocator"]
 	path = vendor/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-[submodule "vendor/SPIRV-Reflect"]
-	path = vendor/SPIRV-Reflect
-	url = https://github.com/KhronosGroup/SPIRV-Reflect
+[submodule "vendor/cglm"]
+	path = vendor/cglm
+	url = https://github.com/recp/cglm

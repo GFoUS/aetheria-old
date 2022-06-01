@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vk_mem_alloc.h"
+
 #include "core/core.h"
 #include "graphics/window.h"
 
@@ -15,6 +17,7 @@ typedef struct {
 	vulkan_instance*        instance;
 	vulkan_physical_device* physical;
 	vulkan_device*          device;
+	VmaAllocator allocator;
 
 	VkSurfaceKHR surface;
 	vulkan_swapchain* swapchain;

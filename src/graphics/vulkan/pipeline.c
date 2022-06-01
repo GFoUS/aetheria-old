@@ -1,12 +1,23 @@
 #include "pipeline.h"
 
-VkPipelineVertexInputStateCreateInfo _get_vertex_input(vulkan_pipeline_config* config) {
-    VkPipelineVertexInputStateCreateInfo vertexInfo;
-    CLEAR_MEMORY(&vertexInfo);
+#include "vertex.h"
 
-    vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInfo.vertexBindingDescriptionCount = 0;
-    vertexInfo.vertexAttributeDescriptionCount = 0;
+typedef struct {
+    vulkan_vertex_info vertexInfo;
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+} vulkan_pipeline_vertex_info;
+
+vulkan_pipeline_vertex_info* _get_vertex_input(vulkan_pipeline_config* config) {
+    vulkan_pipeline_vertex_info* vertexInfo = malloc(sizeof(vulkan_pipeline_vertex_info));
+    CLEAR_MEMORY(vertexInfo);
+
+    vertexInfo->vertexInfo = vulkan_vertex_get_info();
+
+    vertexInfo->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInfo->vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInfo->vertexInputInfo.pVertexBindingDescriptions = &vertexInfo->vertexInfo.binding;
+    vertexInfo->vertexInputInfo.vertexAttributeDescriptionCount = vertexInfo->vertexInfo.numAttributes;
+    vertexInfo->vertexInputInfo.pVertexAttributeDescriptions = vertexInfo->vertexInfo.attributes;
 
     return vertexInfo;
 }
@@ -127,7 +138,7 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     VkPipelineShaderStageCreateInfo shaderStages[2];
     shaderStages[0] = vulkan_shader_get_stage_info(config->vertexShader);
     shaderStages[1] = vulkan_shader_get_stage_info(config->fragmentShader);
-    VkPipelineVertexInputStateCreateInfo vertexInfo = _get_vertex_input(config);
+    vulkan_pipeline_vertex_info* vertexInfo = _get_vertex_input(config);
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = _get_input_assembly(config);
     vulkan_pipeline_viewport_info* viewportInfo = _get_viewport_info(config);
     VkPipelineRasterizationStateCreateInfo rasterizer = _get_rasterization(config);
@@ -144,7 +155,7 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     createInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     createInfo.stageCount = 2;
     createInfo.pStages = shaderStages;
-    createInfo.pVertexInputState = &vertexInfo;
+    createInfo.pVertexInputState = &vertexInfo->vertexInputInfo;
     createInfo.pInputAssemblyState = &inputAssembly;
     createInfo.pViewportState = &viewportInfo->state;
     createInfo.pRasterizationState = &rasterizer;
@@ -164,6 +175,7 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
         FATAL("Vulkan pipeline creation failed with error code: %d", result);
     }
 
+    free(vertexInfo);
     free(viewportInfo);
     free(blending);
 

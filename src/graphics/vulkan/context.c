@@ -34,6 +34,18 @@ vulkan_context* vulkan_context_create(window* win)
 	ctx->device = vulkan_device_create(ctx->instance, ctx->physical, 1, deviceExtensions, 1, layers);
 	INFO("Created vulkan device");
 
+	VmaAllocatorCreateInfo allocatorCreateInfo = {};
+	allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+	allocatorCreateInfo.physicalDevice = ctx->physical->physical;
+	allocatorCreateInfo.device = ctx->device->device;
+	allocatorCreateInfo.instance = ctx->instance->instance;
+
+	VkResult allocatorResult = vmaCreateAllocator(&allocatorCreateInfo, &ctx->allocator);
+	if (allocatorResult != VK_SUCCESS) {
+		FATAL("Vulkan memory allocator creation failed with error code: %d", allocatorResult);
+	}
+	INFO("Created VMA allocator");
+
 	ctx->swapchain = vulkan_swapchain_create(ctx->device, win, ctx->surface);
 	INFO("Created swapchain");
 
@@ -80,6 +92,7 @@ void vulkan_context_destroy(vulkan_context* ctx)
 	vulkan_pipeline_destroy(ctx->pipeline);
 	vulkan_renderpass_destroy(ctx->renderpass);
 	vulkan_swapchain_destroy(ctx->swapchain);
+	vmaDestroyAllocator(ctx->allocator);
 	vulkan_device_destroy(ctx->device);
 	vulkan_physical_device_destroy(ctx->physical);
 	vkDestroySurfaceKHR(ctx->instance->instance, ctx->surface, NULL);

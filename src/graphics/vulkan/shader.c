@@ -43,7 +43,7 @@ VkPipelineShaderStageCreateInfo vulkan_shader_get_stage_info(vulkan_shader* shad
     CLEAR_MEMORY(&stageInfo);
 
     stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stageInfo.stage = shader->type;
+    stageInfo.stage = (VkShaderStageFlagBits)shader->type;
     stageInfo.module = shader->module;
     stageInfo.pName = "main";
 
