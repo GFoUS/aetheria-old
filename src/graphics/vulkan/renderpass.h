@@ -6,6 +6,7 @@
 #include "vulkan/vulkan.h"
 #include "device.h"
 #include "swapchain.h"
+#include "image.h"
 
 typedef struct {
     VkRenderPass renderpass;

@@ -15,6 +15,7 @@ file(GLOB SRC
 
 include_directories(src)
 include_directories(vendor/VulkanMemoryAllocator/include)
+include_directories(vendor/stb)
 
 add_executable(aetheria 
                 ${SRC}

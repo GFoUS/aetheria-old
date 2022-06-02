@@ -7,8 +7,9 @@
 typedef struct {
     VkBuffer buffer;
     VmaAllocation allocation;
-
     vulkan_context* ctx;
+
+    u64 size;
 } vulkan_buffer;
 
 vulkan_buffer* vulkan_buffer_create(vulkan_context* context, VkBufferUsageFlags usage, u64 size);

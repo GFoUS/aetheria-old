@@ -4,6 +4,10 @@
 #include "vulkan/vulkan.h"
 #include "vulkan/context.h"
 #include "vulkan/buffer.h"
+#include "vulkan/descriptor.h"
+#include "vulkan/pipeline.h"
+#include "vulkan/renderpass.h"
+#include "vulkan/image.h"
 #include "window.h"
 
 typedef struct {
@@ -15,6 +19,17 @@ typedef struct {
 
     vulkan_buffer* vertexBuffer;
     vulkan_buffer* indexBuffer;
+
+    vulkan_renderpass* renderpass;
+	vulkan_pipeline* pipeline;
+    vulkan_framebuffer** framebuffers;
+
+    vulkan_descriptor_set_layout* globalSetLayout;
+    vulkan_descriptor_allocator* globalSetAllocator;
+    vulkan_buffer* globalSetBuffer;
+    vulkan_descriptor_set* globalSet;
+
+    vulkan_image* goomy;
 } renderer;
 
 renderer* renderer_create(window* win);

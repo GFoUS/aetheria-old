@@ -73,7 +73,7 @@ VkPipelineRasterizationStateCreateInfo _get_rasterization(vulkan_pipeline_config
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.lineWidth = 1.0f;
 
@@ -112,15 +112,23 @@ vulkan_pipeline_blending_info* _get_blending(vulkan_pipeline_config* config) {
 }
 
 vulkan_pipeline_layout* vulkan_pipeline_layout_create(vulkan_device* device, vulkan_pipeline_layout_config* config) {
-    vulkan_pipeline_layout* layout = malloc(sizeof(vulkan_pipeline_layout));
-    CLEAR_MEMORY(layout);
-    
     VkPipelineLayoutCreateInfo createInfo;
     CLEAR_MEMORY(&createInfo);
 
+    VkDescriptorSetLayout* setLayouts = malloc(sizeof(VkDescriptorSetLayout) * config->numSetLayouts);
+    CLEAR_MEMORY_ARRAY(setLayouts, config->numSetLayouts);
+    for (u32 i = 0; i < config->numSetLayouts; i++) {
+        setLayouts[i] = config->setLayouts[i]->layout;
+    }
+
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    createInfo.setLayoutCount = config->numSetLayouts;
+    createInfo.pSetLayouts = setLayouts;
     
+    vulkan_pipeline_layout* layout = malloc(sizeof(vulkan_pipeline_layout));
+    CLEAR_MEMORY(layout);
     layout->device = device;
+
     VkResult result = vkCreatePipelineLayout(device->device, &createInfo, NULL, &layout->layout);
     if (result != VK_SUCCESS) {
         FATAL("Vulkan pipeline layout creation failed with error code: %d", result);
@@ -147,6 +155,8 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
 
     vulkan_pipeline_layout_config layoutConfig;
     CLEAR_MEMORY(&layoutConfig);
+    layoutConfig.numSetLayouts = config->numSetLayouts;
+    layoutConfig.setLayouts = config->setLayouts;
     vulkan_pipeline_layout* layout = vulkan_pipeline_layout_create(device, &layoutConfig);
     
     VkGraphicsPipelineCreateInfo  createInfo;

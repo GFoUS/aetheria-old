@@ -26,6 +26,10 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
         queueInfos[i].pQueuePriorities = priorites;
     }
 
+    VkPhysicalDeviceFeatures deviceFeatures;
+    CLEAR_MEMORY(&deviceFeatures);
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
     // Device create info
     VkDeviceCreateInfo createInfo;
     CLEAR_MEMORY(&createInfo);
@@ -37,6 +41,7 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
     createInfo.ppEnabledLayerNames = layers;
     createInfo.queueCreateInfoCount = numUniqueQueueIndices;
     createInfo.pQueueCreateInfos = queueInfos;
+    createInfo.pEnabledFeatures = &deviceFeatures;
 
     vulkan_device* device = malloc(sizeof(vulkan_device));
     VkResult result = vkCreateDevice(physical->physical, &createInfo, NULL, &device->device);

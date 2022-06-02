@@ -6,6 +6,7 @@
 #include "device.h"
 #include "shader.h"
 #include "renderpass.h"
+#include "descriptor.h"
 
 typedef struct {
     VkPipelineLayout layout;
@@ -13,7 +14,8 @@ typedef struct {
 } vulkan_pipeline_layout;
 
 typedef struct {
-    i32 valueThatIsHereSoTheStructCanBeDefined;
+    u32 numSetLayouts;
+    vulkan_descriptor_set_layout** setLayouts;
 } vulkan_pipeline_layout_config;
 
 vulkan_pipeline_layout* vulkan_pipeline_layout_create(vulkan_device* device, vulkan_pipeline_layout_config* config);
@@ -33,6 +35,9 @@ typedef struct {
     u32 height;
 
     vulkan_renderpass* renderpass;
+    
+    u32 numSetLayouts;
+    vulkan_descriptor_set_layout** setLayouts;
 } vulkan_pipeline_config;
 
 vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_config* config);

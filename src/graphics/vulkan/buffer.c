@@ -13,6 +13,7 @@ vulkan_buffer* vulkan_buffer_create(vulkan_context* ctx, VkBufferUsageFlags usag
 
     vulkan_buffer* buffer = malloc(sizeof(vulkan_buffer));
     buffer->ctx = ctx;
+    buffer->size = size;
     VkResult result = vmaCreateBuffer(ctx->allocator, &createInfo, &allocInfo, &buffer->buffer, &buffer->allocation, NULL);
     if (result != VK_SUCCESS) {
         FATAL("Vulkan buffer creation failed with error code: %d", result);

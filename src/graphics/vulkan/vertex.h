@@ -4,10 +4,11 @@
 #include "cglm/cglm.h"
 #include "vulkan/vulkan.h"
 
-#define NUM_VERTEX_ATTRIBUTES 1
+#define NUM_VERTEX_ATTRIBUTES 2
 
 typedef struct {
     vec2 position;
+    vec2 uv;
 } vulkan_vertex;
 
 typedef struct {

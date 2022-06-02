@@ -9,23 +9,16 @@
 #include "physical.h"
 #include "device.h"
 #include "swapchain.h"
-#include "renderpass.h"
-#include "pipeline.h"
 #include "command.h"
 
 typedef struct {
 	vulkan_instance*        instance;
 	vulkan_physical_device* physical;
 	vulkan_device*          device;
-	VmaAllocator allocator;
+	VmaAllocator            allocator;
 
 	VkSurfaceKHR surface;
 	vulkan_swapchain* swapchain;
-	vulkan_framebuffer** framebuffers;
-
-	vulkan_renderpass* renderpass;
-	vulkan_pipeline* pipeline;
-
 	vulkan_command_pool* commandPool;
 
 	window* win;

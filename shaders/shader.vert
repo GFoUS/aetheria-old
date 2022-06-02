@@ -1,8 +1,14 @@
 #version 450
 
-layout(location = 0) in vec2 inPosition;
+layout(binding = 0) uniform GlobalData {
+    mat4 view;
+    mat4 proj;
+} global;
 
-layout(location = 0) out vec3 fragColor;
+layout(location = 0) in vec2 inPosition;
+layout(location = 1) in vec2 inUV;
+
+layout(location = 0) out vec2 fragUV;
 
 vec3 colors[4] = vec3[](
     vec3(1.0, 0.0, 0.0),
@@ -12,6 +18,6 @@ vec3 colors[4] = vec3[](
 );
 
 void main() {
-    gl_Position = vec4(inPosition, 0.0, 1.0);
-    fragColor = colors[gl_VertexIndex];
+    gl_Position = global.proj * global.view * vec4(inPosition, 0.0, 1.0);
+    fragUV = inUV;
 }

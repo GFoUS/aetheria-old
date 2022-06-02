@@ -34,7 +34,8 @@ vulkan_context* vulkan_context_create(window* win)
 	ctx->device = vulkan_device_create(ctx->instance, ctx->physical, 1, deviceExtensions, 1, layers);
 	INFO("Created vulkan device");
 
-	VmaAllocatorCreateInfo allocatorCreateInfo = {};
+	VmaAllocatorCreateInfo allocatorCreateInfo;
+	CLEAR_MEMORY(&allocatorCreateInfo);
 	allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
 	allocatorCreateInfo.physicalDevice = ctx->physical->physical;
 	allocatorCreateInfo.device = ctx->device->device;
@@ -46,51 +47,18 @@ vulkan_context* vulkan_context_create(window* win)
 	}
 	INFO("Created VMA allocator");
 
-	ctx->swapchain = vulkan_swapchain_create(ctx->device, win, ctx->surface);
+	ctx->swapchain = vulkan_swapchain_create(ctx, win, ctx->surface);
 	INFO("Created swapchain");
-
-	ctx->renderpass = vulkan_renderpass_create(ctx->device, ctx->swapchain);
-	INFO("Created renderpass");
-
-	vulkan_shader* vertexShader = vulkan_shader_load_from_file(ctx->device, "shaders/vert.spv", VERTEX);
-	vulkan_shader* fragmentShader = vulkan_shader_load_from_file(ctx->device, "shaders/frag.spv", FRAGMENT);
-	vulkan_pipeline_config pipelineConfig;
-	CLEAR_MEMORY(&pipelineConfig);
-	
-	pipelineConfig.vertexShader = vertexShader;
-	pipelineConfig.fragmentShader = fragmentShader;
-	pipelineConfig.width = ctx->swapchain->extent.width;
-	pipelineConfig.height = ctx->swapchain->extent.height;
-	pipelineConfig.renderpass = ctx->renderpass;
-
-	ctx->pipeline = vulkan_pipeline_create(ctx->device, &pipelineConfig);
-	INFO("Created pipeline");
-
-	vulkan_shader_destroy(vertexShader);
-	vulkan_shader_destroy(fragmentShader);
 
 	ctx->commandPool = vulkan_command_pool_create(ctx->device, ctx->physical->queues.graphicsIndex);
 	INFO("Created command pool");
-
-	ctx->framebuffers = malloc(sizeof(vulkan_framebuffer*) * ctx->swapchain->numImages);
-	for (u32 i = 0; i < ctx->swapchain->numImages; i++) {
-		ctx->framebuffers[i] = vulkan_framebuffer_create(ctx->device, ctx->renderpass, 1, &ctx->swapchain->images[i]);
-	}
-	INFO("Created framebuffers");
 
 	return ctx;
 }
 
 void vulkan_context_destroy(vulkan_context* ctx)
 {
-	for (u32 i = 0; i < ctx->swapchain->numImages; i++) {
-		vulkan_framebuffer_destroy(ctx->framebuffers[i]);
-	}
-	free(ctx->framebuffers);
-
 	vulkan_command_pool_destroy(ctx->commandPool);
-	vulkan_pipeline_destroy(ctx->pipeline);
-	vulkan_renderpass_destroy(ctx->renderpass);
 	vulkan_swapchain_destroy(ctx->swapchain);
 	vmaDestroyAllocator(ctx->allocator);
 	vulkan_device_destroy(ctx->device);
@@ -135,9 +103,13 @@ void vulkan_context_start_and_execute(vulkan_context* ctx, vulkan_context_submit
 		submitInfo.pSignalSemaphores = submitConfig->signalSemaphores;
 	}
 
-	VkResult submitResult = vkQueueSubmit(ctx->device->graphics, 1, &submitInfo, submitConfig->fence);
+	VkResult submitResult = vkQueueSubmit(ctx->device->graphics, 1, &submitInfo, submitConfig ? submitConfig->fence : NULL);
 	if (submitResult != VK_SUCCESS) {
 		FATAL("Vulkan command buffer submissions failed with error code: %d", submitResult);
+	}
+
+	if (submitConfig == NULL) {
+		vkQueueWaitIdle(ctx->device->graphics);
 	}
 }
 
