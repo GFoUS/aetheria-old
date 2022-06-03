@@ -22,6 +22,7 @@ typedef struct {
 
     vulkan_renderpass* renderpass;
 	vulkan_pipeline* pipeline;
+    vulkan_image* depthImage;
     vulkan_framebuffer** framebuffers;
 
     vulkan_descriptor_set_layout* globalSetLayout;

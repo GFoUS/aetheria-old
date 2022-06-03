@@ -8,21 +8,49 @@
 #include "swapchain.h"
 #include "image.h"
 
+typedef u32 vulkan_subpass_attachment;
+
+typedef struct {
+    u32 numColorAttachments;
+    vulkan_subpass_attachment* colorAttachments;
+    bool isDepthBuffered;
+    vulkan_subpass_attachment depthAttachment;
+} vulkan_subpass_config;
+
+typedef struct {
+    u32 numSubpasses;
+    VkSubpassDescription* subpasses;
+
+    u32 numAttachments;
+    VkAttachmentDescription* attachments;
+} vulkan_renderpass_builder;
+
 typedef struct {
     VkRenderPass renderpass;
     vulkan_device* device;
+
+    u32 numSubpasses;
+    VkSubpassDescription* subpasses;
+
+    u32 numAttachments;
+    VkAttachmentDescription* attachments;
 } vulkan_renderpass;
 
-vulkan_renderpass* vulkan_renderpass_create(vulkan_device* device, vulkan_swapchain* swapchain);
+vulkan_renderpass_builder* vulkan_renderpass_builder_create();
+vulkan_subpass_attachment vulkan_renderpass_builder_add_attachment(vulkan_renderpass_builder* builder, VkAttachmentDescription* attachment);
+void vulkan_renderpass_builder_add_subpass(vulkan_renderpass_builder* builder, vulkan_subpass_config* config);
+vulkan_renderpass* vulkan_renderpass_builder_build(vulkan_renderpass_builder* builder, vulkan_device* device);
 void vulkan_renderpass_destroy(vulkan_renderpass* renderpass);
 
 typedef struct {
     VkFramebuffer framebuffer;
     vulkan_device* device;
     vulkan_renderpass* renderpass;
-    u32 numAttachments;
-    vulkan_image** attachments;
+    u32 width;
+    u32 height;
 } vulkan_framebuffer;
 
 vulkan_framebuffer* vulkan_framebuffer_create(vulkan_device* device, vulkan_renderpass* renderpass, u32 numImages, vulkan_image** images);
 void vulkan_framebuffer_destroy(vulkan_framebuffer* framebuffer);
+
+void vulkan_renderpass_bind(VkCommandBuffer cmd, vulkan_renderpass* renderpass, vulkan_framebuffer* framebuffer);

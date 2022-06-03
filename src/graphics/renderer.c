@@ -39,7 +39,41 @@ renderer* renderer_create(window* win) {
     render->globalSetBuffer = vulkan_buffer_create(render->ctx, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(global_data));
     vulkan_descriptor_set_write_buffer(render->globalSet, 0, render->globalSetBuffer);
 
-     render->renderpass = vulkan_renderpass_create(render->ctx->device, render->ctx->swapchain);
+    vulkan_renderpass_builder* renderpassBuilder = vulkan_renderpass_builder_create();
+    
+    VkAttachmentDescription colorAttachmentDescription;
+    CLEAR_MEMORY(&colorAttachmentDescription);
+    colorAttachmentDescription.format = render->ctx->swapchain->format;
+    colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    vulkan_subpass_attachment colorAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &colorAttachmentDescription);
+    
+    VkAttachmentDescription depthAttachmentDescription;
+    CLEAR_MEMORY(&depthAttachmentDescription);
+    depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
+    depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    vulkan_subpass_attachment depthAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &depthAttachmentDescription);
+
+    vulkan_subpass_config subpassConfig;
+    CLEAR_MEMORY(&subpassConfig);
+    subpassConfig.numColorAttachments = 1;
+    subpassConfig.colorAttachments = &colorAttachment;
+    subpassConfig.isDepthBuffered = true;
+    subpassConfig.depthAttachment = depthAttachment;
+    vulkan_renderpass_builder_add_subpass(renderpassBuilder, &subpassConfig);
+
+    render->renderpass = vulkan_renderpass_builder_build(renderpassBuilder, render->ctx->device);
 	INFO("Created renderpass");
 
 	vulkan_shader* vertexShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/vert.spv", VERTEX);
@@ -61,9 +95,17 @@ renderer* renderer_create(window* win) {
     vulkan_shader_destroy(vertexShader);
 	vulkan_shader_destroy(fragmentShader);
 
+    render->depthImage = vulkan_image_create(render->ctx, 
+                                            VK_FORMAT_D32_SFLOAT, 
+                                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
+                                            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+                                            render->ctx->swapchain->extent.width, 
+                                            render->ctx->swapchain->extent.height, 
+                                            VK_IMAGE_ASPECT_DEPTH_BIT);
     render->framebuffers = malloc(sizeof(vulkan_framebuffer*) * render->ctx->swapchain->numImages);
 	for (u32 i = 0; i < render->ctx->swapchain->numImages; i++) {
-		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 1, &render->ctx->swapchain->images[i]);
+        vulkan_image* attachments[2] = {render->ctx->swapchain->images[i], render->depthImage};
+		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 2, attachments);
 	}
 	INFO("Created framebuffers");
 
@@ -104,24 +146,6 @@ typedef struct {
 } render_info;
 
 void _render(VkCommandBuffer cmd, render_info* info) {
-    VkRenderPassBeginInfo renderInfo;
-    CLEAR_MEMORY(&renderInfo);
-
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderInfo.renderPass = info->render->renderpass->renderpass;
-    renderInfo.framebuffer = info->render->framebuffers[info->swapchainIndex]->framebuffer;
-    renderInfo.renderArea.offset.x = 0;
-    renderInfo.renderArea.offset.y = 0;
-    renderInfo.renderArea.extent.width = info->render->ctx->swapchain->extent.width;
-    renderInfo.renderArea.extent.height = info->render->ctx->swapchain->extent.height;
-    
-    VkClearValue clearValue;
-    float clearValueData[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    memcpy(clearValue.color.float32, clearValueData, sizeof(float) * 4); // I don't know a better way of doing this
-    renderInfo.clearValueCount = 1;
-    renderInfo.pClearValues = &clearValue;
-
-    vkCmdBeginRenderPass(cmd, &renderInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
     VkDeviceSize offsets[1] = {0};
