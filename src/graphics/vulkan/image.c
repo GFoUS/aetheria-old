@@ -61,7 +61,8 @@ typedef struct {
     VkImageAspectFlags aspects;
 } _transition_layout_info;
 
-void _transition_layout_body(VkCommandBuffer cmd, _transition_layout_info* info) {
+void _transition_layout_body(VkCommandBuffer cmd, void* _info) {
+    _transition_layout_info* info = (_transition_layout_info*)_info;
     VkImageMemoryBarrier barrier;
     CLEAR_MEMORY(&barrier);
 
@@ -127,7 +128,8 @@ typedef struct {
     vulkan_buffer* src;
 } _copy_buffer_to_image_info;
 
-void _copy_buffer_to_image_body(VkCommandBuffer cmd, _copy_buffer_to_image_info* info) {
+void _copy_buffer_to_image_body(VkCommandBuffer cmd, void* _info) {
+    _copy_buffer_to_image_info* info = (_copy_buffer_to_image_info*)_info;
     VkBufferImageCopy region;
     CLEAR_MEMORY(&region);
     region.bufferOffset = 0;
@@ -203,11 +205,12 @@ vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageL
 
     _create_image_view(image, aspects);
     _create_sampler(image);
+
+    return image;
 }
 
-
 vulkan_image* vulkan_image_create_from_file(vulkan_context* ctx, const char* path, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspects) {
-    u32 width, height, channels;
+    i32 width, height, channels;
     u8* pixels = stbi_load(path, &width, &height, &channels, 4);
     if (!pixels) {
         FATAL("Failed to load texture: %s", path);

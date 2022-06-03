@@ -3,15 +3,21 @@
 #include "vulkan/vertex.h"
 #include "cglm/cglm.h"
 
-static vulkan_vertex vertices[4] = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f}},
-    {{-0.5f, 0.5f}, {1.0f, 1.0f}}
+static vulkan_vertex vertices[8] = {
+    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
+
+    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f}}
 };
 
-static u32 indices[6] = {
-    0, 1, 2, 2, 3, 0
+static u32 indices[12] = {
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
 };
 
 typedef struct {
@@ -27,8 +33,8 @@ renderer* renderer_create(window* win) {
     render->renderFinished = vulkan_context_get_semaphore(render->ctx, 0);
     render->inFlight = vulkan_context_get_fence(render->ctx, VK_FENCE_CREATE_SIGNALED_BIT);
 
-    render->vertexBuffer = vulkan_buffer_create_with_data(render->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, sizeof(vulkan_vertex) * 4, vertices);
-    render->indexBuffer = vulkan_buffer_create_with_data(render->ctx, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, sizeof(u32) * 6, indices);    
+    render->vertexBuffer = vulkan_buffer_create_with_data(render->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, sizeof(vertices), vertices);
+    render->indexBuffer = vulkan_buffer_create_with_data(render->ctx, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, sizeof(indices), indices);    
 
     vulkan_descriptor_set_layout_builder* globalSetLayoutBuilder = vulkan_descriptor_set_layout_builder_create();
     vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -109,8 +115,8 @@ renderer* renderer_create(window* win) {
 	}
 	INFO("Created framebuffers");
 
-    render->goomy = vulkan_image_create_from_file(render->ctx, "goomy.png", VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-    vulkan_descriptor_set_write_image(render->globalSet, 1, render->goomy);
+    render->texture = vulkan_image_create_from_file(render->ctx, "texture.jpg", VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    vulkan_descriptor_set_write_image(render->globalSet, 1, render->texture);
 
     return render;
 }
@@ -134,7 +140,8 @@ void renderer_destroy(renderer* render) {
     vulkan_buffer_destroy(render->indexBuffer);
     vulkan_buffer_destroy(render->globalSetBuffer);
 
-    vulkan_image_destroy(render->goomy);
+    vulkan_image_destroy(render->texture);
+    vulkan_image_destroy(render->depthImage);
 
     vulkan_context_destroy(render->ctx);
     free(render);
@@ -146,12 +153,13 @@ typedef struct {
 } render_info;
 
 void _render(VkCommandBuffer cmd, render_info* info) {
+    vulkan_renderpass_bind(cmd, info->render->renderpass, info->render->framebuffers[info->swapchainIndex]);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
     VkDeviceSize offsets[1] = {0};
     vkCmdBindVertexBuffers(cmd, 0, 1, &info->render->vertexBuffer->buffer, offsets);
     vkCmdBindIndexBuffer(cmd, info->render->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(cmd, 12, 1, 0, 0, 0);
 
     vkCmdEndRenderPass(cmd);
 }
@@ -168,8 +176,8 @@ void renderer_render(renderer* render) {
     vec3 eye = {2.0f, 2.0f, 2.0f};
     vec3 center = {0.0f, 0.0f, 0.0f};
     vec3 up = {0.0f, 0.0f, 1.0f};
-    glm_lookat(eye, center, up, &globalData.view);
-    glm_perspective_default(640/480, &globalData.proj);
+    glm_lookat(eye, center, up, globalData.view);
+    glm_perspective_default(640/480, globalData.proj);
     globalData.proj[1][1] *= -1;
 
     vulkan_buffer_update(render->globalSetBuffer, sizeof(global_data), &globalData);

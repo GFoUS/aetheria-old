@@ -138,13 +138,27 @@ void vulkan_renderpass_bind(VkCommandBuffer cmd, vulkan_renderpass* renderpass, 
     renderInfo.renderArea.extent.width = framebuffer->width;
     renderInfo.renderArea.extent.height = framebuffer->height;
     
-    VkClearValue clearValue;
-    float clearValueData[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    memcpy(clearValue.color.float32, clearValueData, sizeof(float) * 4); // I don't know a better way of doing this
-    renderInfo.clearValueCount = 1;
-    renderInfo.pClearValues = &clearValue;
+    u32 numClearValues = 0;
+    VkClearValue* clearValues = malloc(0);
+    for (u32 i = 0; i < renderpass->numAttachments; i++) {
+        VkAttachmentDescription* attachment = &renderpass->attachments[i];
+        if (attachment->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+            numClearValues++;
+            clearValues = realloc(clearValues, sizeof(VkClearValue) * numClearValues);
+            CLEAR_MEMORY(&clearValues[numClearValues - 1]);
 
-    // TODO: Generate clear values based on attachments
+            if (attachment->format == VK_FORMAT_R32G32B32A32_SFLOAT) {
+                float clearValueData[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+                memcpy(clearValues[numClearValues - 1].color.float32, clearValueData, sizeof(float) * 4); // I don't know a better way of doing this
+            } else if (attachment->format == VK_FORMAT_D32_SFLOAT) {
+                clearValues[numClearValues - 1].depthStencil.depth = 1.0f;
+            }
+        }
+    }
+
+    renderInfo.clearValueCount = numClearValues;
+    renderInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(cmd, &renderInfo, VK_SUBPASS_CONTENTS_INLINE);
+    free(clearValues);
 }

@@ -34,6 +34,7 @@ typedef struct {
     u32 width;
     u32 height;
 
+    u32 subpass;
     vulkan_renderpass* renderpass;
     
     u32 numSetLayouts;

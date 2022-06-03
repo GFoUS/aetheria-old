@@ -8,7 +8,7 @@ vulkan_vertex_info vulkan_vertex_get_info() {
 
     vertexInfo.attributes[0].binding = 0;
     vertexInfo.attributes[0].location = 0;
-    vertexInfo.attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+    vertexInfo.attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexInfo.attributes[0].offset = offsetof(vulkan_vertex, position);
     
     vertexInfo.attributes[1].binding = 0;

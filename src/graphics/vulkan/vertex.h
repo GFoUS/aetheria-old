@@ -7,7 +7,7 @@
 #define NUM_VERTEX_ATTRIBUTES 2
 
 typedef struct {
-    vec2 position;
+    vec3 position;
     vec2 uv;
 } vulkan_vertex;
 

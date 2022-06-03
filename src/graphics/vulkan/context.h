@@ -11,7 +11,7 @@
 #include "swapchain.h"
 #include "command.h"
 
-typedef struct {
+typedef struct _vulkan_context {
 	vulkan_instance*        instance;
 	vulkan_physical_device* physical;
 	vulkan_device*          device;

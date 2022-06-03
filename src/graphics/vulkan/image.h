@@ -6,7 +6,7 @@
 #include "context.h"
 #include "vk_mem_alloc.h"
 
-typedef struct {
+typedef struct _vulkan_image {
     vulkan_context* ctx;
     VkImage image;
     VmaAllocation allocation;

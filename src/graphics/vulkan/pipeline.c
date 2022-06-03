@@ -91,6 +91,20 @@ VkPipelineMultisampleStateCreateInfo _get_multisampling(vulkan_pipeline_config* 
     return multisampling;
 }
 
+VkPipelineDepthStencilStateCreateInfo _get_depth_stencil(vulkan_pipeline_config* config) {
+    VkPipelineDepthStencilStateCreateInfo depthStencil;
+    CLEAR_MEMORY(&depthStencil);
+
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    return depthStencil;
+}
+
 typedef struct {
     VkPipelineColorBlendAttachmentState attachment;
     VkPipelineColorBlendStateCreateInfo blend;
@@ -151,7 +165,9 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     vulkan_pipeline_viewport_info* viewportInfo = _get_viewport_info(config);
     VkPipelineRasterizationStateCreateInfo rasterizer = _get_rasterization(config);
     VkPipelineMultisampleStateCreateInfo multisampling = _get_multisampling(config);
+    VkPipelineDepthStencilStateCreateInfo depthStencil = _get_depth_stencil(config);
     vulkan_pipeline_blending_info* blending = _get_blending(config);
+    VkSubpassDescription subpass = config->renderpass->subpasses[config->subpass];
 
     vulkan_pipeline_layout_config layoutConfig;
     CLEAR_MEMORY(&layoutConfig);
@@ -170,12 +186,12 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     createInfo.pViewportState = &viewportInfo->state;
     createInfo.pRasterizationState = &rasterizer;
     createInfo.pMultisampleState = &multisampling;
-    createInfo.pDepthStencilState = NULL;
+    createInfo.pDepthStencilState = subpass.pDepthStencilAttachment != NULL ? &depthStencil : NULL;
     createInfo.pColorBlendState = &blending->blend;
     createInfo.pDynamicState = NULL;
     createInfo.layout = layout->layout;
     createInfo.renderPass = config->renderpass->renderpass;
-    createInfo.subpass = 0;
+    createInfo.subpass = config->subpass;
 
     vulkan_pipeline* pipeline = malloc(sizeof(vulkan_pipeline));
     pipeline->device = device;

@@ -30,7 +30,7 @@ typedef struct {
     vulkan_buffer* globalSetBuffer;
     vulkan_descriptor_set* globalSet;
 
-    vulkan_image* goomy;
+    vulkan_image* texture;
 } renderer;
 
 renderer* renderer_create(window* win);
