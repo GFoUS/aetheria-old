@@ -81,12 +81,18 @@ VkPipelineRasterizationStateCreateInfo _get_rasterization(vulkan_pipeline_config
 }
 
 VkPipelineMultisampleStateCreateInfo _get_multisampling(vulkan_pipeline_config* config) {
+    VkSubpassDescription* subpass = &config->renderpass->subpasses[config->subpass];
+    VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+    if (subpass->pResolveAttachments) {
+        samples = config->renderpass->attachments[subpass->pDepthStencilAttachment->attachment].samples; // Get the depth stencil attachment and pull the samples out from that
+    }
+    
     VkPipelineMultisampleStateCreateInfo multisampling;
     CLEAR_MEMORY(&multisampling);
 
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = samples;
 
     return multisampling;
 }

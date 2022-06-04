@@ -39,3 +39,7 @@ VkCommandBuffer vulkan_command_pool_get_buffer(vulkan_command_pool* pool) {
 
     return cmd;
 }
+
+void vulkan_command_pool_free_buffer(vulkan_command_pool* pool, VkCommandBuffer cmd) {
+    vkFreeCommandBuffers(pool->device->device, pool->pool, 1, &cmd);
+}

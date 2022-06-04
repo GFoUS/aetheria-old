@@ -15,8 +15,6 @@ int main() {
 	all_systems_go();
 
 	window_config win_config;
-	win_config.width = 640;
-	win_config.height = 480;
 	win_config.title = "Aetheria";
 	win_config.keyboardCallback = input_manager_keyboard_callback;
 	window* win = window_create(&win_config);

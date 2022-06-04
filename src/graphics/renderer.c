@@ -27,6 +27,7 @@ typedef struct {
 
 renderer* renderer_create(window* win) {
     renderer* render = malloc(sizeof(renderer));
+    CLEAR_MEMORY(render);
     render->ctx = vulkan_context_create(win); 
     
     render->imageAvailable = vulkan_context_get_semaphore(render->ctx, 0);
@@ -46,30 +47,12 @@ renderer* renderer_create(window* win) {
     vulkan_descriptor_set_write_buffer(render->globalSet, 0, render->globalSetBuffer);
 
     vulkan_renderpass_builder* renderpassBuilder = vulkan_renderpass_builder_create();
-    
-    VkAttachmentDescription colorAttachmentDescription;
-    CLEAR_MEMORY(&colorAttachmentDescription);
-    colorAttachmentDescription.format = render->ctx->swapchain->format;
-    colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VkAttachmentDescription colorAttachmentDescription = vulkan_renderpass_get_default_color_attachment(render->ctx->swapchain->format, render->ctx->physical->maxSamples);
     vulkan_subpass_attachment colorAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &colorAttachmentDescription);
-    
-    VkAttachmentDescription depthAttachmentDescription;
-    CLEAR_MEMORY(&depthAttachmentDescription);
-    depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
-    depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkAttachmentDescription depthAttachmentDescription = vulkan_renderpass_get_default_depth_attachment(render->ctx->physical->maxSamples);
     vulkan_subpass_attachment depthAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &depthAttachmentDescription);
+    VkAttachmentDescription resolveAttachmentDescription = vulkan_renderpass_get_default_resolve_attachment(render->ctx->swapchain->format);
+    vulkan_subpass_attachment resolveAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &resolveAttachmentDescription);
 
     vulkan_subpass_config subpassConfig;
     CLEAR_MEMORY(&subpassConfig);
@@ -77,6 +60,8 @@ renderer* renderer_create(window* win) {
     subpassConfig.colorAttachments = &colorAttachment;
     subpassConfig.isDepthBuffered = true;
     subpassConfig.depthAttachment = depthAttachment;
+    subpassConfig.isMultisampled = true;
+    subpassConfig.resolveAttachment = resolveAttachment;
     vulkan_renderpass_builder_add_subpass(renderpassBuilder, &subpassConfig);
 
     render->renderpass = vulkan_renderpass_builder_build(renderpassBuilder, render->ctx->device);
@@ -101,17 +86,24 @@ renderer* renderer_create(window* win) {
     vulkan_shader_destroy(vertexShader);
 	vulkan_shader_destroy(fragmentShader);
 
+    render->colorImage = vulkan_image_create(render->ctx,
+                                            render->ctx->swapchain->format,
+                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                            render->ctx->swapchain->extent.width,
+                                            render->ctx->swapchain->extent.height,
+                                            VK_IMAGE_ASPECT_COLOR_BIT,
+                                            render->ctx->physical->maxSamples);
     render->depthImage = vulkan_image_create(render->ctx, 
                                             VK_FORMAT_D32_SFLOAT, 
-                                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
                                             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
                                             render->ctx->swapchain->extent.width, 
                                             render->ctx->swapchain->extent.height, 
-                                            VK_IMAGE_ASPECT_DEPTH_BIT);
+                                            VK_IMAGE_ASPECT_DEPTH_BIT,
+                                            render->ctx->physical->maxSamples);
     render->framebuffers = malloc(sizeof(vulkan_framebuffer*) * render->ctx->swapchain->numImages);
 	for (u32 i = 0; i < render->ctx->swapchain->numImages; i++) {
-        vulkan_image* attachments[2] = {render->ctx->swapchain->images[i], render->depthImage};
-		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 2, attachments);
+        vulkan_image* attachments[3] = {render->colorImage, render->depthImage, render->ctx->swapchain->images[i]};
+		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 3, attachments);
 	}
 	INFO("Created framebuffers");
 
@@ -141,6 +133,7 @@ void renderer_destroy(renderer* render) {
     vulkan_buffer_destroy(render->globalSetBuffer);
 
     vulkan_image_destroy(render->texture);
+    vulkan_image_destroy(render->colorImage);
     vulkan_image_destroy(render->depthImage);
 
     vulkan_context_destroy(render->ctx);
@@ -167,6 +160,10 @@ void _render(VkCommandBuffer cmd, render_info* info) {
 void renderer_render(renderer* render) {
     vkWaitForFences(render->ctx->device->device, 1, &render->inFlight, VK_TRUE, UINT64_MAX);
     vkResetFences(render->ctx->device->device, 1, &render->inFlight);
+
+    if (render->cmd != NULL) {
+        vulkan_command_pool_free_buffer(render->ctx->commandPool, render->cmd);
+    }
 
     u32 imageIndex;
     vkAcquireNextImageKHR(render->ctx->device->device, render->ctx->swapchain->swapchain, UINT64_MAX, render->imageAvailable, VK_NULL_HANDLE, &imageIndex);
@@ -195,7 +192,7 @@ void renderer_render(renderer* render) {
     config.signalSemaphores = &render->renderFinished;
     config.fence = render->inFlight;
 
-    vulkan_context_start_and_execute(render->ctx, &config, &info, (void*)_render);   
+    render->cmd = vulkan_context_start_and_execute(render->ctx, &config, &info, (void*)_render);   
 
     VkPresentInfoKHR presentInfo;
     CLEAR_MEMORY(&presentInfo);

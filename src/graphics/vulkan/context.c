@@ -69,7 +69,7 @@ void vulkan_context_destroy(vulkan_context* ctx)
 	free(ctx);
 }
 
-void vulkan_context_start_and_execute(vulkan_context* ctx, vulkan_context_submit_config* submitConfig, void* data, void (*body)(VkCommandBuffer, void*)) {
+VkCommandBuffer vulkan_context_start_and_execute(vulkan_context* ctx, vulkan_context_submit_config* submitConfig, void* data, void (*body)(VkCommandBuffer, void*)) {
 	VkCommandBuffer cmd = vulkan_command_pool_get_buffer(ctx->commandPool);
 	
 	VkCommandBufferBeginInfo beginInfo;
@@ -110,6 +110,10 @@ void vulkan_context_start_and_execute(vulkan_context* ctx, vulkan_context_submit
 
 	if (submitConfig == NULL) {
 		vkQueueWaitIdle(ctx->device->graphics);
+		vulkan_command_pool_free_buffer(ctx->commandPool, cmd);
+		return NULL;
+	} else {
+		return cmd;
 	}
 }
 

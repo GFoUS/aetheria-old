@@ -36,7 +36,7 @@ typedef struct {
 	VkFence fence;
 } vulkan_context_submit_config;
 
-void vulkan_context_start_and_execute(vulkan_context* ctx, vulkan_context_submit_config* submitConfig, void* data, void (*body)(VkCommandBuffer, void*));
+VkCommandBuffer vulkan_context_start_and_execute(vulkan_context* ctx, vulkan_context_submit_config* submitConfig, void* data, void (*body)(VkCommandBuffer, void*));
 
 VkSemaphore vulkan_context_get_semaphore(vulkan_context* ctx, VkSemaphoreCreateFlags flags);
 VkFence vulkan_context_get_fence(vulkan_context* ctx, VkFenceCreateFlags flags);

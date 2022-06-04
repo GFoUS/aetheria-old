@@ -13,3 +13,4 @@ vulkan_command_pool* vulkan_command_pool_create(vulkan_device* device, u32 queue
 void vulkan_command_pool_destroy(vulkan_command_pool* pool);
 
 VkCommandBuffer vulkan_command_pool_get_buffer(vulkan_command_pool* pool);
+void vulkan_command_pool_free_buffer(vulkan_command_pool* pool, VkCommandBuffer cmd);

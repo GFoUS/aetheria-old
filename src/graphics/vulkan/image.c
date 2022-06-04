@@ -93,12 +93,6 @@ void _transition_layout_body(VkCommandBuffer cmd, void* _info) {
 
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    } else if (info->from == VK_IMAGE_LAYOUT_UNDEFINED && info->to == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     } else {
         FATAL("Unsupported layout transition from %d to %d", info->from, info->to);
     }
@@ -166,7 +160,7 @@ void _copy_buffer_to_image(vulkan_image* dst, vulkan_buffer* src) {
     vulkan_context_start_and_execute(dst->ctx, NULL, &info, _copy_buffer_to_image_body);
 }
 
-vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageLayout layout, VkImageUsageFlags usage, u32 width, u32 height, VkImageAspectFlags aspects) {
+vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageUsageFlags usage, u32 width, u32 height, VkImageAspectFlags aspects, VkSampleCountFlagBits samples) {
     VkImageCreateInfo createInfo;
     CLEAR_MEMORY(&createInfo);
 
@@ -182,7 +176,7 @@ vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageL
     createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     createInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | usage;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.samples = samples;
 
     VmaAllocationCreateInfo allocInfo;
     CLEAR_MEMORY(&allocInfo);
@@ -195,14 +189,13 @@ vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageL
     image->ownsImage = true;
     image->width = width;
     image->height = height;
-    
+    image->samples = samples;
+
     VkResult result = vmaCreateImage(ctx->allocator, &createInfo, &allocInfo, &image->image, &image->allocation, NULL);
     if (result != VK_SUCCESS) {
         FATAL("Vulkan image creation failed with error code: %d", result);
     }
     
-    _transition_layout(image, VK_IMAGE_LAYOUT_UNDEFINED, layout, aspects);
-
     _create_image_view(image, aspects);
     _create_sampler(image);
 
@@ -246,6 +239,7 @@ vulkan_image* vulkan_image_create_from_file(vulkan_context* ctx, const char* pat
     image->ownsImage = true;
     image->width = width;
     image->height = height;
+    image->samples = VK_SAMPLE_COUNT_1_BIT;
     
     VkResult result = vmaCreateImage(ctx->allocator, &createInfo, &allocInfo, &image->image, &image->allocation, NULL);
     if (result != VK_SUCCESS) {
@@ -271,6 +265,7 @@ vulkan_image* vulkan_image_create_from_image(vulkan_context* ctx, VkImage img, V
     image->format = format;
     image->width = width;
     image->height = height;
+    image->samples = VK_SAMPLE_COUNT_1_BIT;
 
     _create_image_view(image, aspects);
     _create_sampler(image);

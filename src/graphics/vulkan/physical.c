@@ -47,6 +47,14 @@ vulkan_physical_device* _get_all(vulkan_instance* instance, VkSurfaceKHR surface
         vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevices[i].physical, surface, &swapchain_details->numModes, NULL);
         physicalDevices[i].swapchain_details.modes = malloc(sizeof(VkPresentModeKHR) * swapchain_details->numModes);
         vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevices[i].physical, surface, &swapchain_details->numModes, swapchain_details->modes);
+    
+        VkSampleCountFlags counts = physicalDevices[i].properties.limits.framebufferColorSampleCounts & physicalDevices[i].properties.limits.framebufferDepthSampleCounts;
+        for (u32 j = (u32)VK_SAMPLE_COUNT_64_BIT; j > 0; j >>= 1) {
+            if (counts & j) {
+                physicalDevices[i].maxSamples = (VkSampleCountFlagBits)j;
+                break;
+            }
+        }
     }
 
     free(vkPhysicalDevices);

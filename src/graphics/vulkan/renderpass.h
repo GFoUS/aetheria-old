@@ -15,6 +15,8 @@ typedef struct {
     vulkan_subpass_attachment* colorAttachments;
     bool isDepthBuffered;
     vulkan_subpass_attachment depthAttachment;
+    bool isMultisampled;
+    vulkan_subpass_attachment resolveAttachment;
 } vulkan_subpass_config;
 
 typedef struct {
@@ -54,3 +56,7 @@ vulkan_framebuffer* vulkan_framebuffer_create(vulkan_device* device, vulkan_rend
 void vulkan_framebuffer_destroy(vulkan_framebuffer* framebuffer);
 
 void vulkan_renderpass_bind(VkCommandBuffer cmd, vulkan_renderpass* renderpass, vulkan_framebuffer* framebuffer);
+
+VkAttachmentDescription vulkan_renderpass_get_default_color_attachment(VkFormat format, VkSampleCountFlagBits samples);
+VkAttachmentDescription vulkan_renderpass_get_default_depth_attachment(VkSampleCountFlagBits samples);
+VkAttachmentDescription vulkan_renderpass_get_default_resolve_attachment(VkFormat format);

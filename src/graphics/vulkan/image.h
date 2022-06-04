@@ -16,9 +16,10 @@ typedef struct _vulkan_image {
     VkFormat format;
     u32 width;
     u32 height;
+    VkSampleCountFlagBits samples;
 } vulkan_image;
 
-vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageLayout layout, VkImageUsageFlags usage, u32 width, u32 height, VkImageAspectFlags aspects);
+vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageUsageFlags usage, u32 width, u32 height, VkImageAspectFlags aspects, VkSampleCountFlagBits samples);
 vulkan_image* vulkan_image_create_from_file(vulkan_context* ctx, const char* path, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspects);
 vulkan_image* vulkan_image_create_from_image(vulkan_context* ctx, VkImage image, VkFormat format, u32 width, u32 height, VkImageAspectFlags aspects);
 void vulkan_image_destroy(vulkan_image* image);

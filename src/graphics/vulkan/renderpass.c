@@ -35,12 +35,20 @@ void vulkan_renderpass_builder_add_subpass(vulkan_renderpass_builder* builder, v
         depthAttachment->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     }
 
+    VkAttachmentReference* resolveAttachment = NULL;
+    if (config->isMultisampled) {
+        resolveAttachment = malloc(sizeof(VkAttachmentReference));
+        resolveAttachment->attachment = config->resolveAttachment;
+        resolveAttachment->layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
+
     VkSubpassDescription* subpass = &builder->subpasses[builder->numSubpasses - 1];
     CLEAR_MEMORY(subpass);
     subpass->pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass->colorAttachmentCount = config->numColorAttachments;
     subpass->pColorAttachments = colorAttachments;
     subpass->pDepthStencilAttachment = depthAttachment;
+    subpass->pResolveAttachments = resolveAttachment;
 }
 
 vulkan_renderpass* vulkan_renderpass_builder_build(vulkan_renderpass_builder* builder, vulkan_device* device) {
@@ -75,6 +83,9 @@ void vulkan_renderpass_destroy(vulkan_renderpass* renderpass) {
         free(renderpass->subpasses[i].pColorAttachments);
         if (renderpass->subpasses[i].pDepthStencilAttachment) {
             free(renderpass->subpasses[i].pDepthStencilAttachment);
+        }
+        if (renderpass->subpasses[i].pResolveAttachments) {
+            free(renderpass->subpasses[i].pResolveAttachments);
         }
     }
     free(renderpass->attachments);
@@ -139,12 +150,12 @@ void vulkan_renderpass_bind(VkCommandBuffer cmd, vulkan_renderpass* renderpass, 
     renderInfo.renderArea.extent.height = framebuffer->height;
     
     u32 numClearValues = 0;
-    VkClearValue* clearValues = malloc(0);
+    VkClearValue* clearValues = malloc(sizeof(VkClearValue) * 2);
     for (u32 i = 0; i < renderpass->numAttachments; i++) {
         VkAttachmentDescription* attachment = &renderpass->attachments[i];
         if (attachment->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
             numClearValues++;
-            clearValues = realloc(clearValues, sizeof(VkClearValue) * numClearValues);
+            //clearValues = realloc(clearValues, sizeof(VkClearValue) * numClearValues);
             CLEAR_MEMORY(&clearValues[numClearValues - 1]);
 
             if (attachment->format == VK_FORMAT_R32G32B32A32_SFLOAT) {
@@ -161,4 +172,49 @@ void vulkan_renderpass_bind(VkCommandBuffer cmd, vulkan_renderpass* renderpass, 
 
     vkCmdBeginRenderPass(cmd, &renderInfo, VK_SUBPASS_CONTENTS_INLINE);
     free(clearValues);
+}
+
+VkAttachmentDescription vulkan_renderpass_get_default_color_attachment(VkFormat format, VkSampleCountFlagBits samples) {
+    VkAttachmentDescription attachment;
+    CLEAR_MEMORY(&attachment);
+    attachment.format = format;
+    attachment.samples = samples;
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    return attachment;
+}
+
+VkAttachmentDescription vulkan_renderpass_get_default_depth_attachment(VkSampleCountFlagBits samples) {
+    VkAttachmentDescription attachment;
+    CLEAR_MEMORY(&attachment);
+    attachment.format = VK_FORMAT_D32_SFLOAT;
+    attachment.samples = samples;
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    return attachment;
+}
+
+VkAttachmentDescription vulkan_renderpass_get_default_resolve_attachment(VkFormat format) {
+    VkAttachmentDescription attachment;
+    CLEAR_MEMORY(&attachment);
+    attachment.format = format;
+    attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    return attachment;
 }

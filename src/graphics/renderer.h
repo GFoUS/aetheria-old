@@ -16,12 +16,14 @@ typedef struct {
     VkSemaphore imageAvailable;
     VkSemaphore renderFinished;
     VkFence inFlight;
+    VkCommandBuffer cmd;
 
     vulkan_buffer* vertexBuffer;
     vulkan_buffer* indexBuffer;
 
     vulkan_renderpass* renderpass;
 	vulkan_pipeline* pipeline;
+    vulkan_image* colorImage;
     vulkan_image* depthImage;
     vulkan_framebuffer** framebuffers;
 

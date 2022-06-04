@@ -10,8 +10,6 @@ typedef struct {
 } window;
 
 typedef struct {
-	u32 width;
-	u32 height;
 	const char* title;
 
 	GLFWkeyfun keyboardCallback;

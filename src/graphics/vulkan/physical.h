@@ -23,6 +23,7 @@ typedef struct {
     VkPhysicalDevice physical;
     VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceFeatures features;
+    VkSampleCountFlagBits maxSamples;
 
     vulkan_physical_device_queues queues;
     vulkan_physical_device_swapchain_details swapchain_details;
