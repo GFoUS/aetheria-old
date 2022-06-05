@@ -28,7 +28,11 @@ window* window_create(window_config* config) {
 	glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	#ifdef NDEBUG
 	win->window = glfwCreateWindow(mode->width, mode->width, config->title, monitor, NULL);
+	#else
+	win->window = glfwCreateWindow(640, 480, config->title, NULL, NULL);
+	#endif
 	if (!win->window)
 	{
 		glfwTerminate();

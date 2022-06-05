@@ -9,6 +9,7 @@
 #include "vulkan/renderpass.h"
 #include "vulkan/image.h"
 #include "window.h"
+#include "model.h"
 
 typedef struct {
     vulkan_context* ctx;
@@ -33,6 +34,8 @@ typedef struct {
     vulkan_descriptor_set* globalSet;
 
     vulkan_image* texture;
+
+    model* model1;
 } renderer;
 
 renderer* renderer_create(window* win);

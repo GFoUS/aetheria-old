@@ -110,6 +110,8 @@ renderer* renderer_create(window* win) {
     render->texture = vulkan_image_create_from_file(render->ctx, "texture.jpg", VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     vulkan_descriptor_set_write_image(render->globalSet, 1, render->texture);
 
+    render->model1 = model_load_from_file("models/samples/2.0/Box/glTF/Box.gltf", render->ctx);
+
     return render;
 }
 void renderer_destroy(renderer* render) {
