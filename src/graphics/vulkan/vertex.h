@@ -8,13 +8,13 @@
 
 typedef struct {
     vec3 position;
-    vec2 uv;
+    vec3 normal;
 } vulkan_vertex;
 
 typedef struct {
     u32 numAttributes;
     VkVertexInputAttributeDescription attributes[NUM_VERTEX_ATTRIBUTES];
-    VkVertexInputBindingDescription binding;
+    VkVertexInputBindingDescription bindings[NUM_VERTEX_ATTRIBUTES];
 } vulkan_vertex_info;
 
 vulkan_vertex_info vulkan_vertex_get_info();

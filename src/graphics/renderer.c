@@ -3,48 +3,17 @@
 #include "vulkan/vertex.h"
 #include "cglm/cglm.h"
 
-static vulkan_vertex vertices[8] = {
-    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
-
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f}}
-};
-
-static u32 indices[12] = {
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-};
-
 typedef struct {
     mat4 view;
     mat4 proj;
 } global_data;
 
-renderer* renderer_create(window* win) {
-    renderer* render = malloc(sizeof(renderer));
-    CLEAR_MEMORY(render);
-    render->ctx = vulkan_context_create(win); 
-    
-    render->imageAvailable = vulkan_context_get_semaphore(render->ctx, 0);
-    render->renderFinished = vulkan_context_get_semaphore(render->ctx, 0);
-    render->inFlight = vulkan_context_get_fence(render->ctx, VK_FENCE_CREATE_SIGNALED_BIT);
+void _create_swapchain(renderer* render) {
+    vkDeviceWaitIdle(render->ctx->device->device);
 
-    render->vertexBuffer = vulkan_buffer_create_with_data(render->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, sizeof(vertices), vertices);
-    render->indexBuffer = vulkan_buffer_create_with_data(render->ctx, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, sizeof(indices), indices);    
-
-    vulkan_descriptor_set_layout_builder* globalSetLayoutBuilder = vulkan_descriptor_set_layout_builder_create();
-    vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    render->globalSetLayout = vulkan_descriptor_set_layout_builder_build(globalSetLayoutBuilder, render->ctx->device);
-    render->globalSetAllocator = vulkan_descriptor_allocator_create(render->ctx->device, render->globalSetLayout);
-    render->globalSet = vulkan_descriptor_set_allocate(render->globalSetAllocator);
-    render->globalSetBuffer = vulkan_buffer_create(render->ctx, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(global_data));
-    vulkan_descriptor_set_write_buffer(render->globalSet, 0, render->globalSetBuffer);
+    if (render->ctx->swapchain == NULL) {
+        render->ctx->swapchain = vulkan_swapchain_create(render->ctx, render->ctx->win, render->ctx->surface);
+    }
 
     vulkan_renderpass_builder* renderpassBuilder = vulkan_renderpass_builder_create();
     VkAttachmentDescription colorAttachmentDescription = vulkan_renderpass_get_default_color_attachment(render->ctx->swapchain->format, render->ctx->physical->maxSamples);
@@ -100,28 +69,60 @@ renderer* renderer_create(window* win) {
                                             render->ctx->swapchain->extent.height, 
                                             VK_IMAGE_ASPECT_DEPTH_BIT,
                                             render->ctx->physical->maxSamples);
+
     render->framebuffers = malloc(sizeof(vulkan_framebuffer*) * render->ctx->swapchain->numImages);
 	for (u32 i = 0; i < render->ctx->swapchain->numImages; i++) {
         vulkan_image* attachments[3] = {render->colorImage, render->depthImage, render->ctx->swapchain->images[i]};
 		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 3, attachments);
 	}
 	INFO("Created framebuffers");
+}
 
-    render->texture = vulkan_image_create_from_file(render->ctx, "texture.jpg", VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-    vulkan_descriptor_set_write_image(render->globalSet, 1, render->texture);
+renderer* renderer_create(window* win) {
+    renderer* render = malloc(sizeof(renderer));
+    CLEAR_MEMORY(render);
+    render->ctx = vulkan_context_create(win); 
+    
+    render->imageAvailable = vulkan_context_get_semaphore(render->ctx, 0);
+    render->renderFinished = vulkan_context_get_semaphore(render->ctx, 0);
+    render->inFlight = vulkan_context_get_fence(render->ctx, VK_FENCE_CREATE_SIGNALED_BIT);  
 
-    render->model1 = model_load_from_file("models/samples/2.0/Box/glTF/Box.gltf", render->ctx);
+    vulkan_descriptor_set_layout_builder* globalSetLayoutBuilder = vulkan_descriptor_set_layout_builder_create();
+    vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    render->globalSetLayout = vulkan_descriptor_set_layout_builder_build(globalSetLayoutBuilder, render->ctx->device);
+    render->globalSetAllocator = vulkan_descriptor_allocator_create(render->ctx->device, render->globalSetLayout);
+    render->globalSet = vulkan_descriptor_set_allocate(render->globalSetAllocator);
+    render->globalSetBuffer = vulkan_buffer_create(render->ctx, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(global_data));
+    vulkan_descriptor_set_write_buffer(render->globalSet, 0, render->globalSetBuffer);
+
+    _create_swapchain(render);
+
+    render->model1 = model_load_from_file("models/samples/2.0/Sponza/glTF/Sponza.gltf", render->ctx);
 
     return render;
 }
-void renderer_destroy(renderer* render) {
+
+void _destroy_swapchain(renderer* render, bool destroySwapchain) {
     for (u32 i = 0; i < render->ctx->swapchain->numImages; i++) {
 		vulkan_framebuffer_destroy(render->framebuffers[i]);
 	}
 	free(render->framebuffers);
 
+    vulkan_image_destroy(render->colorImage);
+    vulkan_image_destroy(render->depthImage);
+
     vulkan_pipeline_destroy(render->pipeline);
 	vulkan_renderpass_destroy(render->renderpass);
+
+    if (destroySwapchain) {
+        vulkan_swapchain_destroy(render->ctx->swapchain);
+        render->ctx->swapchain = NULL;
+    }
+}
+
+void renderer_destroy(renderer* render) {
+    _destroy_swapchain(render, false);    
 
     vulkan_descriptor_allocator_destroy(render->globalSetAllocator);
     vulkan_descriptor_set_layout_destroy(render->globalSetLayout);
@@ -130,13 +131,9 @@ void renderer_destroy(renderer* render) {
     vkDestroySemaphore(render->ctx->device->device, render->renderFinished, NULL);
     vkDestroyFence(render->ctx->device->device, render->inFlight, NULL);
 
-    vulkan_buffer_destroy(render->vertexBuffer);
-    vulkan_buffer_destroy(render->indexBuffer);
     vulkan_buffer_destroy(render->globalSetBuffer);
 
-    vulkan_image_destroy(render->texture);
-    vulkan_image_destroy(render->colorImage);
-    vulkan_image_destroy(render->depthImage);
+    model_destroy(render->model1);
 
     vulkan_context_destroy(render->ctx);
     free(render);
@@ -151,33 +148,46 @@ void _render(VkCommandBuffer cmd, render_info* info) {
     vulkan_renderpass_bind(cmd, info->render->renderpass, info->render->framebuffers[info->swapchainIndex]);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
-    VkDeviceSize offsets[1] = {0};
-    vkCmdBindVertexBuffers(cmd, 0, 1, &info->render->vertexBuffer->buffer, offsets);
-    vkCmdBindIndexBuffer(cmd, info->render->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd, 12, 1, 0, 0, 0);
+
+    model_render(info->render->model1, cmd);
 
     vkCmdEndRenderPass(cmd);
 }
 
 void renderer_render(renderer* render) {
     vkWaitForFences(render->ctx->device->device, 1, &render->inFlight, VK_TRUE, UINT64_MAX);
+
+    u32 imageIndex;
+    VkResult aquireResult = vkAcquireNextImageKHR(render->ctx->device->device, render->ctx->swapchain->swapchain, UINT64_MAX, render->imageAvailable, VK_NULL_HANDLE, &imageIndex);
+    if (aquireResult == VK_ERROR_OUT_OF_DATE_KHR || aquireResult == VK_SUBOPTIMAL_KHR) {
+        render->recreateSwapchain = true;
+    }
+    else if (aquireResult != VK_SUCCESS) {
+        FATAL("Vulkan swapchain image aquisition failed with error code: %d", aquireResult);
+    }
+
+    if (render->recreateSwapchain) {
+        _destroy_swapchain(render, true);
+        _create_swapchain(render);
+        render->recreateSwapchain = false;
+        return;
+    }
+
     vkResetFences(render->ctx->device->device, 1, &render->inFlight);
 
     if (render->cmd != NULL) {
         vulkan_command_pool_free_buffer(render->ctx->commandPool, render->cmd);
     }
 
-    u32 imageIndex;
-    vkAcquireNextImageKHR(render->ctx->device->device, render->ctx->swapchain->swapchain, UINT64_MAX, render->imageAvailable, VK_NULL_HANDLE, &imageIndex);
-
     global_data globalData;
     CLEAR_MEMORY(&globalData);
-    vec3 eye = {2.0f, 2.0f, 2.0f};
+    static float i = 0.0f;
+    i += 1.0f;
+    vec3 eye = {i, i, i};
     vec3 center = {0.0f, 0.0f, 0.0f};
     vec3 up = {0.0f, 0.0f, 1.0f};
     glm_lookat(eye, center, up, globalData.view);
-    glm_perspective_default(640/480, globalData.proj);
-    globalData.proj[1][1] *= -1;
+    glm_perspective(45.0f, render->ctx->swapchain->extent.width / render->ctx->swapchain->extent.height, 1.0f, 10000.0f, globalData.proj);
 
     vulkan_buffer_update(render->globalSetBuffer, sizeof(global_data), &globalData);
 
@@ -206,5 +216,12 @@ void renderer_render(renderer* render) {
     presentInfo.pSwapchains = &render->ctx->swapchain->swapchain;
     presentInfo.pImageIndices = &imageIndex;
 
-    vkQueuePresentKHR(render->ctx->device->present, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(render->ctx->device->present, &presentInfo);
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+        render->recreateSwapchain = true;
+    }
+    else if (presentResult != VK_SUCCESS) {
+        FATAL("Vulkan swapchain presentation failed with error code: %d", presentResult);
+    }
+    INFO("Frame done");
 }

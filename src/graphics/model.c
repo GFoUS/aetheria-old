@@ -26,13 +26,13 @@ size_t _get_data_type_size(_accessor_data_type type) {
 }
 
 _accessor_data_type _accessor_data_type_from_string(const char* string) {
-    if (strcmp(string, "SCALAR")) return SCALAR;
-    if (strcmp(string, "VEC2"))   return VEC2;
-    if (strcmp(string, "VEC3"))   return VEC3;
-    if (strcmp(string, "VEC4"))   return VEC4;
-    if (strcmp(string, "MAT2"))   return MAT2;
-    if (strcmp(string, "MAT3"))   return MAT3;
-    if (strcmp(string, "MAT4"))   return MAT4;
+    if (strcmp(string, "SCALAR") == 0) return SCALAR;
+    if (strcmp(string, "VEC2") == 0)   return VEC2;
+    if (strcmp(string, "VEC3") == 0)   return VEC3;
+    if (strcmp(string, "VEC4") == 0)   return VEC4;
+    if (strcmp(string, "MAT2") == 0)   return MAT2;
+    if (strcmp(string, "MAT3") == 0)   return MAT3;
+    if (strcmp(string, "MAT4") == 0)   return MAT4;
 
     FATAL("Invalid accessor data type: %s", string);
     return SCALAR;
@@ -84,7 +84,9 @@ _accessor_data _get_accessor_data(model* m, u32 accessorIndex) {
     data.componentType = cJSON_GetObjectItemCaseSensitive(accessor, "componentType")->valueint;
     data.stride = _get_data_type_size(data.type) * _get_component_type_size(data.componentType);
     data.size = data.count * data.stride;
-    offset += cJSON_GetObjectItemCaseSensitive(accessor, "byteOffset")->valueint;
+    data.data = malloc(data.size);
+    const cJSON* accessorByteOffset = cJSON_GetObjectItemCaseSensitive(accessor, "byteOffset");
+    offset += accessorByteOffset != NULL ? accessorByteOffset->valueint : 0;
 
     const cJSON* bufferView = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(m->data, "bufferViews"), cJSON_GetObjectItemCaseSensitive(accessor, "bufferView")->valueint);
 
@@ -108,34 +110,62 @@ _accessor_data _get_accessor_data(model* m, u32 accessorIndex) {
     }
     free(bufferFilePath);
 
-    // TODO: Load buffer into memory and send to GPU
+    fseek(bufferFile, offset, SEEK_SET);
+    fread(data.data, data.size, 1, bufferFile);
+    fclose(bufferFile);
 
     return data;
 }
 
 void _load_mesh(const cJSON* meshData, model_mesh* mesh) {
-    const cJSON* primitives = cJSON_GetObjectItemCaseSensitive(meshData, "primitives");
-    const cJSON* primitive = cJSON_GetArrayItem(primitives, 0);
+    const cJSON* attributes = cJSON_GetObjectItemCaseSensitive(meshData, "attributes");
 
-    const cJSON* attributes = cJSON_GetObjectItemCaseSensitive(primitive, "attributes");
-    u32 indicesAccessorIndex = cJSON_GetObjectItemCaseSensitive(primitive, "indices")->valueint;
-
+    u32 indicesAccessorIndex = cJSON_GetObjectItemCaseSensitive(meshData, "indices")->valueint;
     u32 positionAccesssorIndex = cJSON_GetObjectItemCaseSensitive(attributes, "POSITION")->valueint;
-    u32 normalAccessorIndex = cJSON_GetObjectItemCaseSensitive(attributes, "NORMAL"); 
+    u32 normalAccessorIndex = cJSON_GetObjectItemCaseSensitive(attributes, "NORMAL")->valueint; 
 
-    _accessor_data indicesAccessorData = _get_accessor_data(mesh->m, indicesAccessorIndex);
+    _accessor_data indicesData = _get_accessor_data(mesh->m, indicesAccessorIndex);
+    _accessor_data positionData = _get_accessor_data(mesh->m, positionAccesssorIndex);
+    _accessor_data normalData = _get_accessor_data(mesh->m, normalAccessorIndex);
+
+    mesh->numIndices = indicesData.count;
+    mesh->indexBuffer = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indicesData.size, indicesData.data);
+    free(indicesData.data);
+
+    mesh->numBuffers = 2;
+    mesh->vertexBuffers = malloc(sizeof(vulkan_buffer*) * 2);
+    mesh->vertexBuffers[0] = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, positionData.size, positionData.data);
+    mesh->vertexBuffers[1] = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, normalData.size, normalData.data);
+    free(positionData.data);
+    free(normalData.data);
 }
 
 void _load_node(const cJSON* nodeData, model_node* node) {
-    const cJSON* meshes = cJSON_GetObjectItemCaseSensitive(nodeData, "meshes");
-    node->numMeshes = cJSON_GetArraySize(meshes);
-    node->meshes = malloc(sizeof(model_mesh*) * node->numMeshes);
-    CLEAR_MEMORY_ARRAY(node->meshes, node->numMeshes);
+    const cJSON* meshID = cJSON_GetObjectItemCaseSensitive(nodeData, "mesh");
+    if (meshID != NULL) {
+        const cJSON* mesh = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(node->m->data, "meshes"), meshID->valueint);
+        u32 offset = 0;
+        for (u32 i = 0; i < meshID->valueint; i++) {
+            offset += node->m->meshPrimitivesLookup[i];
+        }
+
+        const cJSON* primitives = cJSON_GetObjectItemCaseSensitive(mesh, "primitives");
+        node->numMeshes = cJSON_GetArraySize(primitives);
+        node->meshes = malloc(sizeof(model_mesh*) * node->numMeshes);
+        for (u32 i = 0; i < node->numMeshes; i++) {
+            node->meshes[i] = &node->m->meshes[offset + i];
+        }
+    }
+
+    const cJSON* children = cJSON_GetObjectItemCaseSensitive(nodeData, "children");
+    node->numChildren = cJSON_GetArraySize(children);
+    node->children = malloc(sizeof(model_node*) * node->numChildren);
+    CLEAR_MEMORY_ARRAY(node->children, node->numChildren);
 
     u32 i = 0;
-    const cJSON* meshID;
-    cJSON_ArrayForEach(meshID, meshes) {
-        node->meshes[i] = &node->m->meshes[meshID->valueint];
+    const cJSON* childID;
+    cJSON_ArrayForEach(childID, children) {
+        node->children[i] = &node->m->nodes[childID->valueint];
         i++;
     }
 }
@@ -159,13 +189,46 @@ model* model_load_from_file(const char* path, vulkan_context* ctx) {
     this->data = cJSON_Parse(modelText);
     free(modelText);
 
-    // Load nodes
+    // Allocate mesh arrays and node arrays early so pointers can be created
+    const cJSON* meshes = cJSON_GetObjectItemCaseSensitive(this->data, "meshes");
+
+    this->meshPrimitivesLookup = malloc(sizeof(u32) * cJSON_GetArraySize(meshes));
+    CLEAR_MEMORY_ARRAY(this->meshPrimitivesLookup, cJSON_GetArraySize(meshes));
+
+    const cJSON* mesh;
+    u32 totalPrimitives = 0;
+    u32 i = 0;
+    cJSON_ArrayForEach(mesh, meshes) {
+        const cJSON* primitives = cJSON_GetObjectItemCaseSensitive(mesh, "primitives");
+        this->meshPrimitivesLookup[i] = cJSON_GetArraySize(primitives);
+        totalPrimitives += cJSON_GetArraySize(primitives);
+        i++;
+    }
+
+    this->numMeshes = totalPrimitives;
+    this->meshes = malloc(sizeof(model_mesh) * this->numMeshes);
+    CLEAR_MEMORY_ARRAY(this->meshes, this->numMeshes);
+
     const cJSON* nodes = cJSON_GetObjectItemCaseSensitive(this->data, "nodes");
     this->numNodes = cJSON_GetArraySize(nodes);
     this->nodes = malloc(sizeof(model_node) * this->numNodes);
     CLEAR_MEMORY_ARRAY(this->nodes, this->numNodes);
 
-    u32 i = 0;
+    // Load meshes
+    i = 0;
+    cJSON_ArrayForEach(mesh, meshes) {
+        const cJSON* primitives = cJSON_GetObjectItemCaseSensitive(mesh, "primitives");
+        const cJSON* primitive;
+        cJSON_ArrayForEach(primitive, primitives) {
+            this->meshes[i].id = i;
+            this->meshes[i].m = this;
+            _load_mesh(primitive, &this->meshes[i]);
+            i++;
+        }
+    }
+
+    // Load nodes
+    i = 0;
     const cJSON* nodeData = NULL;
     cJSON_ArrayForEach(nodeData, nodes) {
         this->nodes[i].id = i;
@@ -174,25 +237,83 @@ model* model_load_from_file(const char* path, vulkan_context* ctx) {
         i++;
     }
 
-    // Load meshes
-    const cJSON* meshes = cJSON_GetObjectItemCaseSensitive(this->data, "meshes");
-    this->numMeshes = cJSON_GetArraySize(meshes);
-    this->meshes = malloc(sizeof(model_mesh) * this->numMeshes);
-    CLEAR_MEMORY_ARRAY(this->meshes, this->numMeshes);
-
+    // Fetch root nodes
+    const cJSON* scene = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(this->data, "scenes"), cJSON_GetObjectItemCaseSensitive(this->data, "scene")->valueint);
+    const cJSON* rootNodes = cJSON_GetObjectItemCaseSensitive(scene, "nodes");
+    this->numRootNodes = cJSON_GetArraySize(rootNodes);
+    this->rootNodes = malloc(sizeof(model_node*) * this->numRootNodes);
+    CLEAR_MEMORY_ARRAY(this->rootNodes, this->numRootNodes);
+    
     i = 0;
-    const cJSON* meshData = NULL;
-    cJSON_ArrayForEach(meshData, meshes) {
-        this->meshes[i].id = i;
-        this->meshes[i].m = this;
-        _load_mesh(meshData, &this->meshes[i]);
+    const cJSON* rootNode;
+    cJSON_ArrayForEach(rootNode, rootNodes) {
+        this->rootNodes[i] = &this->nodes[rootNode->valueint];
         i++;
     }
 
-    cJSON_Delete(this->data);
-
     return this;
 }
-void model_destroy(model* this);
+void model_destroy(model* this) {
+    for (u32 i = 0; i < this->numMeshes; i++) {
+        model_mesh* mesh = &this->meshes[i];
 
-void model_render(model* m);
+        vulkan_buffer_destroy(mesh->indexBuffer);
+        for (u32 j = 0; j < mesh->numBuffers; j++) {
+            vulkan_buffer_destroy(mesh->vertexBuffers[j]);
+        }
+        free(mesh->vertexBuffers);
+    }
+    free(this->meshes);
+
+    for (u32 i = 0; i < this->numNodes; i++) {
+        free(this->nodes[i].children);
+        free(this->nodes[i].meshes);
+    }
+    free(this->nodes);
+    free(this->rootNodes);
+    free(this->meshPrimitivesLookup);
+
+    cJSON_Delete(this->data);
+
+    free(this);
+}
+
+void _render_node(model_node* node, VkCommandBuffer cmd) {
+    for (u32 i = 0; i < node->numMeshes; i++) {
+        model_mesh* mesh = node->meshes[i];
+        VkBuffer* buffers = malloc(sizeof(VkBuffer) * mesh->numBuffers);
+        for (u32 j = 0; j < mesh->numBuffers; j++) {
+            buffers[j] = mesh->vertexBuffers[j]->buffer;
+        }
+        VkDeviceSize* offsets = malloc(sizeof(VkDeviceSize) * mesh->numBuffers);
+        CLEAR_MEMORY_ARRAY(offsets, mesh->numBuffers);
+
+        vkCmdBindVertexBuffers(cmd, 0, mesh->numBuffers, buffers, offsets);
+        free(buffers);
+        free(offsets);
+
+
+        switch (mesh->indexBuffer->size / mesh->numIndices) {
+        case(sizeof(u16)) : {
+            vkCmdBindIndexBuffer(cmd, mesh->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT16);
+            break;
+        }
+        case(sizeof(u32)) : {
+            vkCmdBindIndexBuffer(cmd, mesh->indexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
+            break;
+        }
+        }
+
+        vkCmdDrawIndexed(cmd, mesh->numIndices, 1, 0, 0, 0);
+    }
+
+    for (u32 i = 0; i < node->numChildren; i++) {
+        _render_node(node->children[i], cmd);
+    }
+}
+
+void model_render(model* m, VkCommandBuffer cmd) {
+    for (u32 i = 0; i < m->numRootNodes; i++) {
+        _render_node(m->rootNodes[i], cmd);
+    }
+}

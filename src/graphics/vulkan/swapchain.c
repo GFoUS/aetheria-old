@@ -40,6 +40,7 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_context* ctx, window* win, VkSu
 
     VkSurfaceFormatKHR format = _pick_format(ctx->physical->swapchain_details.numFormats, ctx->physical->swapchain_details.formats);
 
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx->physical->physical, surface, &ctx->physical->swapchain_details.capabilities);
     VkExtent2D extent = _pick_extent(&ctx->physical->swapchain_details.capabilities, win);
 
     VkSwapchainCreateInfoKHR createInfo;

@@ -19,9 +19,6 @@ typedef struct {
     VkFence inFlight;
     VkCommandBuffer cmd;
 
-    vulkan_buffer* vertexBuffer;
-    vulkan_buffer* indexBuffer;
-
     vulkan_renderpass* renderpass;
 	vulkan_pipeline* pipeline;
     vulkan_image* colorImage;
@@ -33,9 +30,8 @@ typedef struct {
     vulkan_buffer* globalSetBuffer;
     vulkan_descriptor_set* globalSet;
 
-    vulkan_image* texture;
-
     model* model1;
+    bool recreateSwapchain;
 } renderer;
 
 renderer* renderer_create(window* win);
