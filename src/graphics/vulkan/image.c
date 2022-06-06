@@ -281,3 +281,18 @@ void vulkan_image_destroy(vulkan_image* image) {
     }
     free(image);
 }
+
+vulkan_image* vulkan_image_get_default_color_texture(vulkan_context* ctx) {
+    static vulkan_image* image = NULL;
+    if (image == NULL) {
+        image = vulkan_image_create(ctx, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_SAMPLE_COUNT_1_BIT);
+        float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        vulkan_buffer* buffer = vulkan_buffer_create_with_data(ctx, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, sizeof(float) * 4, (void*)white);
+
+        _transition_layout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+        _copy_buffer_to_image(image, buffer);
+        _transition_layout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+
+    return image;
+}

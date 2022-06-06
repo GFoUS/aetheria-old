@@ -71,6 +71,19 @@ typedef struct {
     _accessor_component_type componentType;
 } _accessor_data;
 
+char* _get_path_from_uri(const char* uri, const char* basePath) {
+    size_t uriLength = strlen(uri);
+    char* lastSlash = strrchr(basePath, (int)"/"[0]);
+    u32 lastSlashPos = lastSlash - basePath;
+
+    char* bufferFilePath = malloc(lastSlashPos + 1 + uriLength + 1); // lastSlashPos + 1 is the path up to and including the last slash, uriLength will be needed for the new path, and the final + 1 is for the null-termination character 
+    CLEAR_MEMORY_ARRAY(bufferFilePath, lastSlashPos + 1 + uriLength + 1);
+    memcpy(bufferFilePath, basePath, lastSlashPos + 1);
+    memcpy(&bufferFilePath[lastSlashPos + 1], uri, uriLength);
+
+    return bufferFilePath;
+}
+
 _accessor_data _get_accessor_data(model* m, u32 accessorIndex) {
     _accessor_data data;
     CLEAR_MEMORY(&data);
@@ -95,14 +108,7 @@ _accessor_data _get_accessor_data(model* m, u32 accessorIndex) {
     const cJSON* buffer = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(m->data, "buffers"), cJSON_GetObjectItemCaseSensitive(bufferView, "buffer")->valueint);
 
     const char* uri = cJSON_GetObjectItemCaseSensitive(buffer, "uri")->valuestring;
-    size_t uriLength = strlen(uri);
-    char* lastSlash = strrchr(m->path, (int)"/"[0]);
-    u32 lastSlashPos = lastSlash - m->path;
-
-    char* bufferFilePath = malloc(lastSlashPos + 1 + uriLength + 1); // lastSlashPos + 1 is the path up to and including the last slash, uriLength will be needed for the new path, and the final + 1 is for the null-termination character 
-    CLEAR_MEMORY_ARRAY(bufferFilePath, lastSlashPos + 1 + uriLength + 1);
-    memcpy(bufferFilePath, m->path, lastSlashPos + 1);
-    memcpy(&bufferFilePath[lastSlashPos + 1], uri, uriLength);
+    char* bufferFilePath = _get_path_from_uri(uri, m->path);
 
     FILE* bufferFile = fopen(bufferFilePath, "rb");
     if (bufferFile == NULL) {
@@ -118,6 +124,9 @@ _accessor_data _get_accessor_data(model* m, u32 accessorIndex) {
 }
 
 void _load_mesh(const cJSON* meshData, model_mesh* mesh) {
+    u32 materialID = cJSON_GetObjectItemCaseSensitive(meshData, "material")->valueint;
+    mesh->material = &mesh->m->materials[materialID];
+
     const cJSON* attributes = cJSON_GetObjectItemCaseSensitive(meshData, "attributes");
 
     u32 indicesAccessorIndex = cJSON_GetObjectItemCaseSensitive(meshData, "indices")->valueint;
@@ -132,12 +141,29 @@ void _load_mesh(const cJSON* meshData, model_mesh* mesh) {
     mesh->indexBuffer = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indicesData.size, indicesData.data);
     free(indicesData.data);
 
-    mesh->numBuffers = 2;
-    mesh->vertexBuffers = malloc(sizeof(vulkan_buffer*) * 2);
+    mesh->numBuffers = 3;
+    mesh->vertexBuffers = malloc(sizeof(vulkan_buffer*) * mesh->numBuffers);
     mesh->vertexBuffers[0] = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, positionData.size, positionData.data);
     mesh->vertexBuffers[1] = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, normalData.size, normalData.data);
     free(positionData.data);
     free(normalData.data);
+
+    if (!mesh->material->baseColorTexture.defaultTexture) {
+        char texCoordBase[9] = "TEXCOORD_";
+        char baseColorTextureTexCoord[14];
+        memcpy(baseColorTextureTexCoord, texCoordBase, 9);
+        sprintf(&baseColorTextureTexCoord[9], "%d", mesh->material->baseColorTexture.texCoord);
+        u32 colorUVAccessorIndex = cJSON_GetObjectItemCaseSensitive(attributes, baseColorTextureTexCoord)->valueint;
+        _accessor_data colorUVData = _get_accessor_data(mesh->m, colorUVAccessorIndex);
+        INFO("%f", ((float*)colorUVData.data)[0]);
+        mesh->vertexBuffers[2] = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, colorUVData.size, colorUVData.data);
+        free(colorUVData.data);
+    } else {
+        vec2* colorUVs = malloc(sizeof(vec2) * positionData.count);
+        CLEAR_MEMORY_ARRAY(colorUVs, positionData.count);
+        mesh->vertexBuffers[2] = vulkan_buffer_create_with_data(mesh->m->ctx, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(vec2) * positionData.count, colorUVs);
+        free(colorUVs);
+    }
 }
 
 void _load_node(const cJSON* nodeData, model_node* node) {
@@ -170,10 +196,50 @@ void _load_node(const cJSON* nodeData, model_node* node) {
     }
 }
 
-model* model_load_from_file(const char* path, vulkan_context* ctx) {
+void _load_material(const cJSON* materialData, model_material* material) {
+    const cJSON* pbr = cJSON_GetObjectItemCaseSensitive(materialData, "pbrMetallicRoughness");
+    
+    const cJSON* baseColorFactorObj = cJSON_GetObjectItemCaseSensitive(pbr, "baseColorFactor");
+    if (baseColorFactorObj != NULL) {
+        const cJSON* color;
+        u32 i = 0;
+        cJSON_ArrayForEach(color, baseColorFactorObj) {
+            material->data.baseColorFactor[i++] = (float)color->valuedouble; 
+        }
+    } else {
+        vec4 white = {1.0f, 1.0f, 1.0f, 1.0f};
+        memcpy(&material->data.baseColorFactor, &white, sizeof(vec4));
+    }
+
+    const cJSON* baseColorTexture = cJSON_GetObjectItemCaseSensitive(pbr, "baseColorTexture");
+    if (baseColorTexture != NULL) {
+        u32 textureIndex = cJSON_GetObjectItemCaseSensitive(baseColorTexture, "index")->valueint;
+        const cJSON* textureData = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(material->m->data, "textures"), textureIndex);
+        material->baseColorTexture.image = material->m->images[cJSON_GetObjectItemCaseSensitive(textureData, "source")->valueint];
+        material->baseColorTexture.defaultTexture = false;
+        
+        const cJSON* texCoord = cJSON_GetObjectItemCaseSensitive(baseColorTexture, "texCoord");
+        if (texCoord != NULL) {
+            material->baseColorTexture.texCoord = texCoord->valueint;
+        } else {
+            material->baseColorTexture.texCoord = 0;
+        }
+    } else {
+        material->baseColorTexture.image = vulkan_image_get_default_color_texture(material->m->ctx);
+        material->baseColorTexture.texCoord = 0;
+        material->baseColorTexture.defaultTexture = true;
+    }
+    vulkan_descriptor_set_write_image(material->materialDataSet, 1, material->baseColorTexture.image);
+
+    material->materialDataBuffer = vulkan_buffer_create_with_data(material->m->ctx, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(model_material_data), &material->data);
+    vulkan_descriptor_set_write_buffer(material->materialDataSet, 0, material->materialDataBuffer);
+}
+
+model* model_load_from_file(const char* path, vulkan_context* ctx, vulkan_descriptor_set_layout* materialSetLayout) {
     model* this = malloc(sizeof(model));
     this->ctx = ctx;
     this->path = path;
+    this->materialSetAllocator = vulkan_descriptor_allocator_create(ctx->device, materialSetLayout);
     
     FILE* modelFile = fopen(path, "r");
     if (modelFile == NULL) {
@@ -213,6 +279,37 @@ model* model_load_from_file(const char* path, vulkan_context* ctx) {
     this->numNodes = cJSON_GetArraySize(nodes);
     this->nodes = malloc(sizeof(model_node) * this->numNodes);
     CLEAR_MEMORY_ARRAY(this->nodes, this->numNodes);
+
+    const cJSON* materials = cJSON_GetObjectItemCaseSensitive(this->data, "materials");
+    this->numMaterials = cJSON_GetArraySize(materials);
+    this->materials = malloc(sizeof(model_material) * this->numMaterials);
+    CLEAR_MEMORY_ARRAY(this->materials, this->numMaterials);
+
+    const cJSON* images = cJSON_GetObjectItemCaseSensitive(this->data, "images");
+    this->numImages = cJSON_GetArraySize(images);
+    this->images = malloc(sizeof(vulkan_image*) * this->numImages);
+    CLEAR_MEMORY_ARRAY(this->images, this->numImages);
+
+    // Load images
+    i = 0;
+    const cJSON* image;
+    cJSON_ArrayForEach(image, images) {
+        const char* uri = cJSON_GetObjectItemCaseSensitive(image, "uri")->valuestring;
+        char* imageFilePath = _get_path_from_uri(uri, this->path);
+        this->images[i] = vulkan_image_create_from_file(this->ctx, imageFilePath, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        i++;
+    }
+
+    // Load materials
+    i = 0;
+    const cJSON* material;
+    cJSON_ArrayForEach(material, materials) {
+        this->materials[i].id = i;
+        this->materials[i].m = this;
+        this->materials[i].materialDataSet = vulkan_descriptor_set_allocate(this->materialSetAllocator);
+        _load_material(material, &this->materials[i]);
+        i++;
+    }
 
     // Load meshes
     i = 0;
@@ -272,13 +369,14 @@ void model_destroy(model* this) {
     free(this->nodes);
     free(this->rootNodes);
     free(this->meshPrimitivesLookup);
+    vulkan_descriptor_allocator_destroy(this->materialSetAllocator);
 
     cJSON_Delete(this->data);
 
     free(this);
 }
 
-void _render_node(model_node* node, VkCommandBuffer cmd) {
+void _render_node(model_node* node, VkCommandBuffer cmd, VkPipelineLayout layout) {
     for (u32 i = 0; i < node->numMeshes; i++) {
         model_mesh* mesh = node->meshes[i];
         VkBuffer* buffers = malloc(sizeof(VkBuffer) * mesh->numBuffers);
@@ -288,6 +386,7 @@ void _render_node(model_node* node, VkCommandBuffer cmd) {
         VkDeviceSize* offsets = malloc(sizeof(VkDeviceSize) * mesh->numBuffers);
         CLEAR_MEMORY_ARRAY(offsets, mesh->numBuffers);
 
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1, &mesh->material->materialDataSet->set, 0, NULL);
         vkCmdBindVertexBuffers(cmd, 0, mesh->numBuffers, buffers, offsets);
         free(buffers);
         free(offsets);
@@ -308,12 +407,12 @@ void _render_node(model_node* node, VkCommandBuffer cmd) {
     }
 
     for (u32 i = 0; i < node->numChildren; i++) {
-        _render_node(node->children[i], cmd);
+        _render_node(node->children[i], cmd, layout);
     }
 }
 
-void model_render(model* m, VkCommandBuffer cmd) {
+void model_render(model* m, VkCommandBuffer cmd, VkPipelineLayout layout) {
     for (u32 i = 0; i < m->numRootNodes; i++) {
-        _render_node(m->rootNodes[i], cmd);
+        _render_node(m->rootNodes[i], cmd, layout);
     }
 }

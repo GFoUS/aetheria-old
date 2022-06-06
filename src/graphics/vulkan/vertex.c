@@ -16,6 +16,11 @@ vulkan_vertex_info vulkan_vertex_get_info() {
     vertexInfo.attributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexInfo.attributes[1].offset = offsetof(vulkan_vertex, normal);
 
+    vertexInfo.attributes[2].binding = 2;
+    vertexInfo.attributes[2].location = 2;
+    vertexInfo.attributes[2].format = VK_FORMAT_R32G32_SFLOAT;
+    vertexInfo.attributes[2].offset = offsetof(vulkan_vertex, colorUV);
+
     vertexInfo.bindings[0].binding = 0;
     vertexInfo.bindings[0].stride = sizeof(vec3);
     vertexInfo.bindings[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
@@ -23,6 +28,10 @@ vulkan_vertex_info vulkan_vertex_get_info() {
     vertexInfo.bindings[1].binding = 1;
     vertexInfo.bindings[1].stride = sizeof(vec3);
     vertexInfo.bindings[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    vertexInfo.bindings[2].binding = 2;
+    vertexInfo.bindings[2].stride = sizeof(vec2);
+    vertexInfo.bindings[2].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     return vertexInfo;
 }

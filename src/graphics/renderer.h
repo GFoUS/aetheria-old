@@ -26,6 +26,7 @@ typedef struct {
     vulkan_framebuffer** framebuffers;
 
     vulkan_descriptor_set_layout* globalSetLayout;
+    vulkan_descriptor_set_layout* materialSetLayout;
     vulkan_descriptor_allocator* globalSetAllocator;
     vulkan_buffer* globalSetBuffer;
     vulkan_descriptor_set* globalSet;

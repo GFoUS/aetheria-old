@@ -38,6 +38,7 @@ void _create_swapchain(renderer* render) {
 
 	vulkan_shader* vertexShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/vert.spv", VERTEX);
 	vulkan_shader* fragmentShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/frag.spv", FRAGMENT);
+    vulkan_descriptor_set_layout* layouts[2] = {render->globalSetLayout, render->materialSetLayout};
 	vulkan_pipeline_config pipelineConfig;
 	CLEAR_MEMORY(&pipelineConfig);
 	
@@ -46,8 +47,8 @@ void _create_swapchain(renderer* render) {
 	pipelineConfig.width = render->ctx->swapchain->extent.width;
 	pipelineConfig.height = render->ctx->swapchain->extent.height;
 	pipelineConfig.renderpass = render->renderpass;
-    pipelineConfig.numSetLayouts = 1;
-    pipelineConfig.setLayouts = &render->globalSetLayout;
+    pipelineConfig.numSetLayouts = 2;
+    pipelineConfig.setLayouts = layouts;
 
 	render->pipeline = vulkan_pipeline_create(render->ctx->device, &pipelineConfig);
 	INFO("Created pipeline");
@@ -89,16 +90,20 @@ renderer* renderer_create(window* win) {
 
     vulkan_descriptor_set_layout_builder* globalSetLayoutBuilder = vulkan_descriptor_set_layout_builder_create();
     vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    vulkan_descriptor_set_layout_builder_add(globalSetLayoutBuilder, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     render->globalSetLayout = vulkan_descriptor_set_layout_builder_build(globalSetLayoutBuilder, render->ctx->device);
     render->globalSetAllocator = vulkan_descriptor_allocator_create(render->ctx->device, render->globalSetLayout);
     render->globalSet = vulkan_descriptor_set_allocate(render->globalSetAllocator);
     render->globalSetBuffer = vulkan_buffer_create(render->ctx, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(global_data));
     vulkan_descriptor_set_write_buffer(render->globalSet, 0, render->globalSetBuffer);
 
+    vulkan_descriptor_set_layout_builder* materialSetLayoutBuilder = vulkan_descriptor_set_layout_builder_create();
+    vulkan_descriptor_set_layout_builder_add(materialSetLayoutBuilder, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    vulkan_descriptor_set_layout_builder_add(materialSetLayoutBuilder, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    render->materialSetLayout = vulkan_descriptor_set_layout_builder_build(materialSetLayoutBuilder, render->ctx->device);
+
     _create_swapchain(render);
 
-    render->model1 = model_load_from_file("models/samples/2.0/Sponza/glTF/Sponza.gltf", render->ctx);
+    render->model1 = model_load_from_file("models/samples/2.0/Duck/glTF/Duck.gltf", render->ctx, render->materialSetLayout);
 
     return render;
 }
@@ -149,7 +154,7 @@ void _render(VkCommandBuffer cmd, render_info* info) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
 
-    model_render(info->render->model1, cmd);
+    model_render(info->render->model1, cmd, info->render->pipeline->layout->layout);
 
     vkCmdEndRenderPass(cmd);
 }
@@ -188,6 +193,7 @@ void renderer_render(renderer* render) {
     vec3 up = {0.0f, 0.0f, 1.0f};
     glm_lookat(eye, center, up, globalData.view);
     glm_perspective(45.0f, render->ctx->swapchain->extent.width / render->ctx->swapchain->extent.height, 1.0f, 10000.0f, globalData.proj);
+    globalData.proj[1][1] *= -1;
 
     vulkan_buffer_update(render->globalSetBuffer, sizeof(global_data), &globalData);
 
