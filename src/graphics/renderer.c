@@ -76,6 +76,11 @@ void _create_swapchain(renderer* render) {
         vulkan_image* attachments[3] = {render->colorImage, render->depthImage, render->ctx->swapchain->images[i]};
 		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 3, attachments);
 	}
+
+    if (render->model != NULL) {
+        render->model->pipelineLayout = render->pipeline->layout; // Update pipeline layout in model
+    }
+
 	INFO("Created framebuffers");
 }
 
@@ -103,7 +108,8 @@ renderer* renderer_create(window* win) {
 
     _create_swapchain(render);
 
-    render->model1 = model_load_from_file("models/samples/2.0/Duck/glTF/Duck.gltf", render->ctx, render->materialSetLayout);
+    render->gltf = gltf_load_file("models/samples/2.0/Duck/glTF/Duck.gltf");
+    render->model = model_load_from_gltf(render->ctx, render->gltf, render->materialSetLayout, render->pipeline->layout);
 
     return render;
 }
@@ -127,18 +133,20 @@ void _destroy_swapchain(renderer* render, bool destroySwapchain) {
 }
 
 void renderer_destroy(renderer* render) {
-    _destroy_swapchain(render, false);    
+    _destroy_swapchain(render, false);  
+
+    model_unload(render->model);
+    gltf_unload(render->gltf);  
 
     vulkan_descriptor_allocator_destroy(render->globalSetAllocator);
     vulkan_descriptor_set_layout_destroy(render->globalSetLayout);
+    vulkan_descriptor_set_layout_destroy(render->materialSetLayout);
 
     vkDestroySemaphore(render->ctx->device->device, render->imageAvailable, NULL);
     vkDestroySemaphore(render->ctx->device->device, render->renderFinished, NULL);
     vkDestroyFence(render->ctx->device->device, render->inFlight, NULL);
 
     vulkan_buffer_destroy(render->globalSetBuffer);
-
-    model_destroy(render->model1);
 
     vulkan_context_destroy(render->ctx);
     free(render);
@@ -154,7 +162,7 @@ void _render(VkCommandBuffer cmd, render_info* info) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
 
-    model_render(info->render->model1, cmd, info->render->pipeline->layout->layout);
+    model_render(info->render->model, cmd);
 
     vkCmdEndRenderPass(cmd);
 }
@@ -192,7 +200,7 @@ void renderer_render(renderer* render) {
     vec3 center = {0.0f, 0.0f, 0.0f};
     vec3 up = {0.0f, 0.0f, 1.0f};
     glm_lookat(eye, center, up, globalData.view);
-    glm_perspective(45.0f, render->ctx->swapchain->extent.width / render->ctx->swapchain->extent.height, 1.0f, 10000.0f, globalData.proj);
+    glm_perspective(45.0f, (float)render->ctx->swapchain->extent.width / (float)render->ctx->swapchain->extent.height, 1.0f, 10000.0f, globalData.proj);
     globalData.proj[1][1] *= -1;
 
     vulkan_buffer_update(render->globalSetBuffer, sizeof(global_data), &globalData);

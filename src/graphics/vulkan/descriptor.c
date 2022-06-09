@@ -199,13 +199,13 @@ void vulkan_descriptor_set_write_buffer(vulkan_descriptor_set* set, u32 binding,
     vkUpdateDescriptorSets(allocator->device->device, 1, &writeInfo, 0, NULL);
 }
 
-void vulkan_descriptor_set_write_image(vulkan_descriptor_set* set, u32 binding, vulkan_image* image) {
+void vulkan_descriptor_set_write_image(vulkan_descriptor_set* set, u32 binding, vulkan_image* image, vulkan_sampler* sampler) {
     VkDescriptorImageInfo imageInfo;
     CLEAR_MEMORY(&imageInfo);
 
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     imageInfo.imageView = image->imageView;
-    imageInfo.sampler = image->sampler;
+    imageInfo.sampler = sampler->sampler;
     
     VkWriteDescriptorSet writeInfo;
     CLEAR_MEMORY(&writeInfo);

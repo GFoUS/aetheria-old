@@ -31,7 +31,9 @@ typedef struct {
     vulkan_buffer* globalSetBuffer;
     vulkan_descriptor_set* globalSet;
 
-    model* model1;
+    gltf_gltf* gltf;
+    model_model* model;
+
     bool recreateSwapchain;
 } renderer;
 

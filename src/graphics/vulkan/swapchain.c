@@ -34,7 +34,7 @@ VkExtent2D _pick_extent(VkSurfaceCapabilitiesKHR* capabilities, window* win) {
 vulkan_swapchain* vulkan_swapchain_create(vulkan_context* ctx, window* win, VkSurfaceKHR surface) {
     // Calculate image count
     u32 imageCount = ctx->physical->swapchain_details.capabilities.minImageCount + 1;
-    if (ctx->physical->swapchain_details.capabilities.maxImageCount > 0 && imageCount > ctx->physical->swapchain_details.capabilities.maxImageCount) {
+    if (ctx->physical->swapchain_details.capabilities.maxImageCount > 0 && (imageCount > ctx->physical->swapchain_details.capabilities.maxImageCount)) {
         imageCount = ctx->physical->swapchain_details.capabilities.maxImageCount;
     }
 

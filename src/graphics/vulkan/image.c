@@ -27,33 +27,6 @@ void _create_image_view(vulkan_image* image, VkImageAspectFlags aspects) {
     }
 }
 
-void _create_sampler(vulkan_image* image) {
-    VkSamplerCreateInfo createInfo;
-    CLEAR_MEMORY(&createInfo);
-
-    createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    createInfo.magFilter = VK_FILTER_LINEAR;
-    createInfo.minFilter = VK_FILTER_LINEAR;
-    createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.anisotropyEnable = VK_TRUE;
-    createInfo.maxAnisotropy = image->ctx->physical->properties.limits.maxSamplerAnisotropy;
-    createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    createInfo.unnormalizedCoordinates = VK_FALSE;
-    createInfo.compareEnable = VK_FALSE;
-    createInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    createInfo.mipLodBias = 0.0f;
-    createInfo.minLod = 0.0f;
-    createInfo.maxLod = 0.0f;
-
-    VkResult result = vkCreateSampler(image->ctx->device->device, &createInfo, NULL, &image->sampler);
-    if (result != VK_SUCCESS) {
-        FATAL("Vulkan sampler creation failed with error code: %d", result);
-    }
-}
-
 typedef struct {
     vulkan_image* image;
     VkImageLayout from;
@@ -197,7 +170,6 @@ vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageU
     }
     
     _create_image_view(image, aspects);
-    _create_sampler(image);
 
     return image;
 }
@@ -252,7 +224,6 @@ vulkan_image* vulkan_image_create_from_file(vulkan_context* ctx, const char* pat
     vulkan_buffer_destroy(buffer);
 
     _create_image_view(image, aspects);
-    _create_sampler(image);
 
     return image;
 }
@@ -268,13 +239,11 @@ vulkan_image* vulkan_image_create_from_image(vulkan_context* ctx, VkImage img, V
     image->samples = VK_SAMPLE_COUNT_1_BIT;
 
     _create_image_view(image, aspects);
-    _create_sampler(image);
 
     return image;
 }
 
 void vulkan_image_destroy(vulkan_image* image) {
-    vkDestroySampler(image->ctx->device->device, image->sampler, NULL);
     vkDestroyImageView(image->ctx->device->device, image->imageView, NULL);
     if (image->ownsImage) {
         vmaDestroyImage(image->ctx->allocator, image->image, image->allocation);
@@ -295,4 +264,42 @@ vulkan_image* vulkan_image_get_default_color_texture(vulkan_context* ctx) {
     }
 
     return image;
+}
+
+vulkan_sampler* vulkan_sampler_create(vulkan_context* ctx, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode addressModeU, VkSamplerAddressMode addressModeV) {
+    vulkan_sampler* sampler = malloc(sizeof(vulkan_sampler));
+    CLEAR_MEMORY(sampler);
+    sampler->ctx = ctx;
+
+    VkSamplerCreateInfo createInfo;
+    CLEAR_MEMORY(&createInfo);
+
+    createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    createInfo.magFilter = magFilter;
+    createInfo.minFilter = minFilter;
+    createInfo.addressModeU = addressModeU;
+    createInfo.addressModeV = addressModeV;
+    createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.anisotropyEnable = VK_TRUE;
+    createInfo.maxAnisotropy = ctx->physical->properties.limits.maxSamplerAnisotropy;
+    createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    createInfo.unnormalizedCoordinates = VK_FALSE;
+    createInfo.compareEnable = VK_FALSE;
+    createInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    createInfo.mipLodBias = 0.0f;
+    createInfo.minLod = 0.0f;
+    createInfo.maxLod = 0.0f;
+
+    VkResult result = vkCreateSampler(ctx->device->device, &createInfo, NULL, &sampler->sampler);
+    if (result != VK_SUCCESS) {
+        FATAL("Vulkan sampler creation failed with error code: %d", result);
+    }
+
+    return sampler;
+}
+
+void vulkan_sampler_destroy(vulkan_sampler* sampler) {
+    vkDestroySampler(sampler->ctx->device->device, sampler->sampler, NULL);
+    free(sampler);
 }
