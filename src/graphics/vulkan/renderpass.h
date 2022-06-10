@@ -11,11 +11,13 @@
 typedef u32 vulkan_subpass_attachment;
 
 typedef struct {
+    u32 numInputAttachments;
+    vulkan_subpass_attachment* inputAttachments;
     u32 numColorAttachments;
     vulkan_subpass_attachment* colorAttachments;
     bool isDepthBuffered;
     vulkan_subpass_attachment depthAttachment;
-    bool isMultisampled;
+    bool isResolving;
     vulkan_subpass_attachment resolveAttachment;
 } vulkan_subpass_config;
 

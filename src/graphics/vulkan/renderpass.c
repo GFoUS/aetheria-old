@@ -21,6 +21,12 @@ void vulkan_renderpass_builder_add_subpass(vulkan_renderpass_builder* builder, v
     builder->numSubpasses++;
     builder->subpasses = realloc(builder->subpasses, sizeof(VkSubpassDescription) * builder->numSubpasses);
 
+    VkAttachmentReference* inputAttachments = malloc(sizeof(VkAttachmentReference) * config->numInputAttachments);
+    for (u32 i = 0; i < config->numInputAttachments; i++) {
+        inputAttachments[i].attachment = config->inputAttachments[i];
+        inputAttachments[i].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
     VkAttachmentReference* colorAttachments = malloc(sizeof(VkAttachmentReference) * config->numColorAttachments);
     CLEAR_MEMORY_ARRAY(colorAttachments, config->numColorAttachments);
     for (u32 i = 0; i < config->numColorAttachments; i++) {
@@ -36,7 +42,7 @@ void vulkan_renderpass_builder_add_subpass(vulkan_renderpass_builder* builder, v
     }
 
     VkAttachmentReference* resolveAttachment = NULL;
-    if (config->isMultisampled) {
+    if (config->isResolving) {
         resolveAttachment = malloc(sizeof(VkAttachmentReference));
         resolveAttachment->attachment = config->resolveAttachment;
         resolveAttachment->layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -45,6 +51,8 @@ void vulkan_renderpass_builder_add_subpass(vulkan_renderpass_builder* builder, v
     VkSubpassDescription* subpass = &builder->subpasses[builder->numSubpasses - 1];
     CLEAR_MEMORY(subpass);
     subpass->pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass->inputAttachmentCount = config->numInputAttachments;
+    subpass->pInputAttachments = inputAttachments;
     subpass->colorAttachmentCount = config->numColorAttachments;
     subpass->pColorAttachments = colorAttachments;
     subpass->pDepthStencilAttachment = depthAttachment;
@@ -52,6 +60,17 @@ void vulkan_renderpass_builder_add_subpass(vulkan_renderpass_builder* builder, v
 }
 
 vulkan_renderpass* vulkan_renderpass_builder_build(vulkan_renderpass_builder* builder, vulkan_device* device) {
+    VkSubpassDependency* dependencies = malloc(sizeof(VkSubpassDependency) * (builder->numSubpasses - 1));
+    CLEAR_MEMORY_ARRAY(dependencies, builder->numSubpasses - 1);
+    for (u32 i = 0; i < (builder->numSubpasses - 1); i++) {
+        dependencies[i].srcSubpass = i;
+        dependencies[i].dstSubpass = i + 1;
+        dependencies[i].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        dependencies[i].srcAccessMask = 0;
+        dependencies[i].dstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dependencies[i].dstAccessMask = 0;
+    }
+    
     VkRenderPassCreateInfo createInfo;
     CLEAR_MEMORY(&createInfo);
 
@@ -60,6 +79,8 @@ vulkan_renderpass* vulkan_renderpass_builder_build(vulkan_renderpass_builder* bu
     createInfo.pAttachments = builder->attachments;
     createInfo.subpassCount = builder->numSubpasses;
     createInfo.pSubpasses = builder->subpasses;
+    createInfo.dependencyCount = builder->numSubpasses - 1;
+    createInfo.pDependencies = dependencies;
 
     vulkan_renderpass* renderpass = malloc(sizeof(vulkan_renderpass));
     renderpass->device = device;
@@ -80,6 +101,7 @@ vulkan_renderpass* vulkan_renderpass_builder_build(vulkan_renderpass_builder* bu
 
 void vulkan_renderpass_destroy(vulkan_renderpass* renderpass) {
     for (u32 i = 0; i < renderpass->numSubpasses; i++) {
+        free(renderpass->subpasses[i].pInputAttachments);
         free(renderpass->subpasses[i].pColorAttachments);
         if (renderpass->subpasses[i].pDepthStencilAttachment) {
             free(renderpass->subpasses[i].pDepthStencilAttachment);
@@ -150,19 +172,21 @@ void vulkan_renderpass_bind(VkCommandBuffer cmd, vulkan_renderpass* renderpass, 
     renderInfo.renderArea.extent.height = framebuffer->height;
     
     u32 numClearValues = 0;
-    VkClearValue* clearValues = malloc(sizeof(VkClearValue) * 2);
+    VkClearValue* clearValues = malloc(0);
     for (u32 i = 0; i < renderpass->numAttachments; i++) {
         VkAttachmentDescription* attachment = &renderpass->attachments[i];
         if (attachment->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
             numClearValues++;
-            //clearValues = realloc(clearValues, sizeof(VkClearValue) * numClearValues);
-            CLEAR_MEMORY(&clearValues[numClearValues - 1]);
+            clearValues = realloc(clearValues, sizeof(VkClearValue) * (i + 1));
+            CLEAR_MEMORY(&clearValues[i]);
 
             if (attachment->format == VK_FORMAT_R32G32B32A32_SFLOAT) {
                 float clearValueData[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-                memcpy(clearValues[numClearValues - 1].color.float32, clearValueData, sizeof(float) * 4); // I don't know a better way of doing this
+                memcpy(clearValues[i].color.float32, clearValueData, sizeof(float) * 4);
             } else if (attachment->format == VK_FORMAT_D32_SFLOAT) {
-                clearValues[numClearValues - 1].depthStencil.depth = 1.0f;
+                clearValues[i].depthStencil.depth = 1.0f;
+            } else if (attachment->format == VK_FORMAT_R16_SFLOAT) { // Special rule for the the reveal buffer (need a way of specifying this)
+                clearValues[i].color.float32[0] = 1.0f;
             }
         }
     }
@@ -180,11 +204,11 @@ VkAttachmentDescription vulkan_renderpass_get_default_color_attachment(VkFormat 
     attachment.format = format;
     attachment.samples = samples;
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     return attachment;
 }

@@ -40,6 +40,7 @@ void vulkan_descriptor_set_layout_builder_add(vulkan_descriptor_set_layout_build
     builder->bindings[builder->numBindings - 1].descriptorCount = 1;
     builder->bindings[builder->numBindings - 1].descriptorType = type;
     builder->bindings[builder->numBindings - 1].stageFlags = VK_SHADER_STAGE_ALL;
+    if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) builder->bindings[builder->numBindings - 1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     builder->bindings[builder->numBindings - 1].pImmutableSamplers = NULL;
 }
 
@@ -216,6 +217,29 @@ void vulkan_descriptor_set_write_image(vulkan_descriptor_set* set, u32 binding, 
     writeInfo.dstArrayElement = 0;
     writeInfo.descriptorCount = 1;
     writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writeInfo.pImageInfo = &imageInfo;
+
+    vulkan_descriptor_allocator* allocator = (vulkan_descriptor_allocator*)set->allocator;
+    vkUpdateDescriptorSets(allocator->device->device, 1, &writeInfo, 0, NULL);
+}
+
+void vulkan_descriptor_set_write_input_attachment(vulkan_descriptor_set* set, u32 binding, vulkan_image* image) {
+    VkDescriptorImageInfo imageInfo;
+    CLEAR_MEMORY(&imageInfo);
+
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = image->imageView;
+    imageInfo.sampler = NULL;
+    
+    VkWriteDescriptorSet writeInfo;
+    CLEAR_MEMORY(&writeInfo);
+
+    writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeInfo.dstSet = set->set;
+    writeInfo.dstBinding = binding;
+    writeInfo.dstArrayElement = 0;
+    writeInfo.descriptorCount = 1;
+    writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     writeInfo.pImageInfo = &imageInfo;
 
     vulkan_descriptor_allocator* allocator = (vulkan_descriptor_allocator*)set->allocator;

@@ -92,7 +92,12 @@ bool _supports_swapchain(vulkan_physical_device* physical) {
 
 bool _is_suitable(vulkan_physical_device* physical, u32 numExtensions, const char** extensions) {
     bool queuesComplete = physical->queues.found == (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_PRESENT_BIT);
-    return queuesComplete && _has_extensions(physical, numExtensions, extensions) && _supports_swapchain(physical) && physical->features.samplerAnisotropy;
+    return queuesComplete && 
+            _has_extensions(physical, numExtensions, extensions) && 
+            _supports_swapchain(physical) && 
+            physical->features.samplerAnisotropy && 
+            physical->features.independentBlend &&
+            physical->features.sampleRateShading;
 }
 
 vulkan_physical_device* vulkan_physical_device_create(vulkan_instance* instance, VkSurfaceKHR surface, u32 numExtensions, const char** extensions) {

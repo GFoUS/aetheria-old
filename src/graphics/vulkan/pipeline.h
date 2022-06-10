@@ -39,7 +39,15 @@ typedef struct {
     
     u32 numSetLayouts;
     vulkan_descriptor_set_layout** setLayouts;
+
+    u32 numBlendingAttachments;
+    VkPipelineColorBlendAttachmentState* blendingAttachments;
+
+    VkCullModeFlags rasterizerCullMode;
+    VkSampleCountFlags samples;
 } vulkan_pipeline_config;
 
 vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_config* config);
 void vulkan_pipeline_destroy(vulkan_pipeline* pipeline);
+
+VkPipelineColorBlendAttachmentState vulkan_get_default_blending();

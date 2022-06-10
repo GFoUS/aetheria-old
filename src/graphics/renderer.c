@@ -16,49 +16,136 @@ void _create_swapchain(renderer* render) {
     }
 
     vulkan_renderpass_builder* renderpassBuilder = vulkan_renderpass_builder_create();
-    VkAttachmentDescription colorAttachmentDescription = vulkan_renderpass_get_default_color_attachment(render->ctx->swapchain->format, render->ctx->physical->maxSamples);
-    vulkan_subpass_attachment colorAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &colorAttachmentDescription);
-    VkAttachmentDescription depthAttachmentDescription = vulkan_renderpass_get_default_depth_attachment(render->ctx->physical->maxSamples);
-    vulkan_subpass_attachment depthAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &depthAttachmentDescription);
-    VkAttachmentDescription resolveAttachmentDescription = vulkan_renderpass_get_default_resolve_attachment(render->ctx->swapchain->format);
-    vulkan_subpass_attachment resolveAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &resolveAttachmentDescription);
+    VkAttachmentDescription accumDescription = vulkan_renderpass_get_default_color_attachment(VK_FORMAT_R16G16B16A16_SFLOAT, render->ctx->physical->maxSamples);
+    vulkan_subpass_attachment accumAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &accumDescription);
+    VkAttachmentDescription revealDescription = vulkan_renderpass_get_default_color_attachment(VK_FORMAT_R16_SFLOAT, render->ctx->physical->maxSamples);
+    vulkan_subpass_attachment revealAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &revealDescription);
+   
+    VkAttachmentDescription depthDescription = vulkan_renderpass_get_default_depth_attachment(render->ctx->physical->maxSamples);
+    vulkan_subpass_attachment depthAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &depthDescription);
+    
+    VkAttachmentDescription compositeDescription = vulkan_renderpass_get_default_color_attachment(render->ctx->swapchain->format, render->ctx->physical->maxSamples);
+    vulkan_subpass_attachment compositeAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &compositeDescription);
 
-    vulkan_subpass_config subpassConfig;
-    CLEAR_MEMORY(&subpassConfig);
-    subpassConfig.numColorAttachments = 1;
-    subpassConfig.colorAttachments = &colorAttachment;
-    subpassConfig.isDepthBuffered = true;
-    subpassConfig.depthAttachment = depthAttachment;
-    subpassConfig.isMultisampled = true;
-    subpassConfig.resolveAttachment = resolveAttachment;
-    vulkan_renderpass_builder_add_subpass(renderpassBuilder, &subpassConfig);
+    VkAttachmentDescription resolveDescription = vulkan_renderpass_get_default_resolve_attachment(render->ctx->swapchain->format);
+    vulkan_subpass_attachment resolveAttachment = vulkan_renderpass_builder_add_attachment(renderpassBuilder, &resolveDescription);
+
+    vulkan_subpass_config renderSubpassConfig;
+    CLEAR_MEMORY(&renderSubpassConfig);
+    renderSubpassConfig.numColorAttachments = 2;
+    vulkan_subpass_attachment colorAttachments[2] = {accumAttachment, revealAttachment};
+    renderSubpassConfig.colorAttachments = colorAttachments;
+    renderSubpassConfig.isDepthBuffered = false;
+    renderSubpassConfig.depthAttachment = depthAttachment;
+    renderSubpassConfig.isResolving = false;
+    vulkan_renderpass_builder_add_subpass(renderpassBuilder, &renderSubpassConfig);
+
+    vulkan_subpass_config compositeSubpassConfig;
+    CLEAR_MEMORY(&renderSubpassConfig);
+    compositeSubpassConfig.numInputAttachments = 2;
+    compositeSubpassConfig.inputAttachments = colorAttachments;
+    compositeSubpassConfig.numColorAttachments = 1;
+    compositeSubpassConfig.colorAttachments = &compositeAttachment;
+    compositeSubpassConfig.isDepthBuffered = true;
+    compositeSubpassConfig.depthAttachment = depthAttachment;
+    compositeSubpassConfig.isResolving = true;
+    compositeSubpassConfig.resolveAttachment = resolveAttachment;
+    vulkan_renderpass_builder_add_subpass(renderpassBuilder, &compositeSubpassConfig);
 
     render->renderpass = vulkan_renderpass_builder_build(renderpassBuilder, render->ctx->device);
 	INFO("Created renderpass");
 
-	vulkan_shader* vertexShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/vert.spv", VERTEX);
-	vulkan_shader* fragmentShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/frag.spv", FRAGMENT);
-    vulkan_descriptor_set_layout* layouts[2] = {render->globalSetLayout, render->materialSetLayout};
-	vulkan_pipeline_config pipelineConfig;
-	CLEAR_MEMORY(&pipelineConfig);
+	vulkan_shader* renderVertexShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/vert.spv", VERTEX);
+	vulkan_shader* renderFragmentShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/frag.spv", FRAGMENT);
+    vulkan_descriptor_set_layout* renderLayouts[2] = {render->globalSetLayout, render->materialSetLayout};
+	vulkan_pipeline_config renderPipelineConfig;
+	CLEAR_MEMORY(&renderPipelineConfig);
 	
-	pipelineConfig.vertexShader = vertexShader;
-	pipelineConfig.fragmentShader = fragmentShader;
-	pipelineConfig.width = render->ctx->swapchain->extent.width;
-	pipelineConfig.height = render->ctx->swapchain->extent.height;
-	pipelineConfig.renderpass = render->renderpass;
-    pipelineConfig.numSetLayouts = 2;
-    pipelineConfig.setLayouts = layouts;
+	renderPipelineConfig.vertexShader = renderVertexShader;
+	renderPipelineConfig.fragmentShader = renderFragmentShader;
+	renderPipelineConfig.width = render->ctx->swapchain->extent.width;
+	renderPipelineConfig.height = render->ctx->swapchain->extent.height;
+	renderPipelineConfig.renderpass = render->renderpass;
+    renderPipelineConfig.subpass = 0;
+    renderPipelineConfig.numSetLayouts = 2;
+    renderPipelineConfig.setLayouts = renderLayouts;
+    renderPipelineConfig.samples = render->ctx->physical->maxSamples;
 
-	render->pipeline = vulkan_pipeline_create(render->ctx->device, &pipelineConfig);
-	INFO("Created pipeline");
+    VkPipelineColorBlendAttachmentState blendingAttachments[2];
+    CLEAR_MEMORY_ARRAY(blendingAttachments, 2);
 
-    vulkan_shader_destroy(vertexShader);
-	vulkan_shader_destroy(fragmentShader);
+    blendingAttachments[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendingAttachments[0].blendEnable = VK_TRUE;
+    blendingAttachments[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendingAttachments[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendingAttachments[0].colorBlendOp = VK_BLEND_OP_ADD;
+    blendingAttachments[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendingAttachments[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendingAttachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
 
-    render->colorImage = vulkan_image_create(render->ctx,
+    blendingAttachments[1].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendingAttachments[1].blendEnable = VK_TRUE;
+    blendingAttachments[1].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blendingAttachments[1].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    blendingAttachments[1].colorBlendOp = VK_BLEND_OP_ADD;
+    blendingAttachments[1].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blendingAttachments[1].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blendingAttachments[1].alphaBlendOp = VK_BLEND_OP_ADD;
+
+    renderPipelineConfig.numBlendingAttachments = 2;
+    renderPipelineConfig.blendingAttachments = blendingAttachments;
+    renderPipelineConfig.rasterizerCullMode = VK_CULL_MODE_BACK_BIT;
+
+	render->renderPipeline = vulkan_pipeline_create(render->ctx->device, &renderPipelineConfig);
+	INFO("Created render pipeline");
+
+    vulkan_shader_destroy(renderVertexShader);
+	vulkan_shader_destroy(renderFragmentShader);
+
+    vulkan_shader* compositeVertexShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/composite.vert.spv", VERTEX);
+	vulkan_shader* compositeFragmentShader = vulkan_shader_load_from_file(render->ctx->device, "shaders/composite.frag.spv", FRAGMENT);
+    vulkan_descriptor_set_layout* compositeLayouts[2] = {render->compositeSetLayout};
+	vulkan_pipeline_config compositePipelineConfig;
+	CLEAR_MEMORY(&compositePipelineConfig);
+
+    VkPipelineColorBlendAttachmentState defaultBlendingAttachment = vulkan_get_default_blending();
+	
+	compositePipelineConfig.vertexShader = compositeVertexShader;
+	compositePipelineConfig.fragmentShader = compositeFragmentShader;
+	compositePipelineConfig.width = render->ctx->swapchain->extent.width;
+	compositePipelineConfig.height = render->ctx->swapchain->extent.height;
+	compositePipelineConfig.renderpass = render->renderpass;
+    compositePipelineConfig.subpass = 1;
+    compositePipelineConfig.numSetLayouts = 1;
+    compositePipelineConfig.setLayouts = compositeLayouts;
+    compositePipelineConfig.numBlendingAttachments = 1;
+    compositePipelineConfig.blendingAttachments = &defaultBlendingAttachment;
+    compositePipelineConfig.rasterizerCullMode = VK_CULL_MODE_FRONT_BIT;
+    compositePipelineConfig.samples = render->ctx->physical->maxSamples;
+
+	render->compositePipeline = vulkan_pipeline_create(render->ctx->device, &compositePipelineConfig);
+	INFO("Created composite pipeline");
+
+    vulkan_shader_destroy(compositeVertexShader);
+    vulkan_shader_destroy(compositeFragmentShader);
+
+    render->accumImage = vulkan_image_create(render->ctx,
+                                            VK_FORMAT_R16G16B16A16_SFLOAT,
+                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+                                            render->ctx->swapchain->extent.width,
+                                            render->ctx->swapchain->extent.height,
+                                            VK_IMAGE_ASPECT_COLOR_BIT,
+                                            render->ctx->physical->maxSamples);
+    render->revealImage = vulkan_image_create(render->ctx,
+                                            VK_FORMAT_R16_SFLOAT,
+                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+                                            render->ctx->swapchain->extent.width,
+                                            render->ctx->swapchain->extent.height,
+                                            VK_IMAGE_ASPECT_COLOR_BIT,
+                                            render->ctx->physical->maxSamples);
+    render->compositeImage = vulkan_image_create(render->ctx,
                                             render->ctx->swapchain->format,
-                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
                                             render->ctx->swapchain->extent.width,
                                             render->ctx->swapchain->extent.height,
                                             VK_IMAGE_ASPECT_COLOR_BIT,
@@ -73,12 +160,12 @@ void _create_swapchain(renderer* render) {
 
     render->framebuffers = malloc(sizeof(vulkan_framebuffer*) * render->ctx->swapchain->numImages);
 	for (u32 i = 0; i < render->ctx->swapchain->numImages; i++) {
-        vulkan_image* attachments[3] = {render->colorImage, render->depthImage, render->ctx->swapchain->images[i]};
-		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 3, attachments);
+        vulkan_image* attachments[5] = {render->accumImage, render->revealImage, render->depthImage, render->compositeImage, render->ctx->swapchain->images[i]};
+		render->framebuffers[i] = vulkan_framebuffer_create(render->ctx->device, render->renderpass, 5, attachments);
 	}
 
     if (render->model != NULL) {
-        render->model->pipelineLayout = render->pipeline->layout; // Update pipeline layout in model
+        render->model->pipelineLayout = render->renderPipeline->layout; // Update pipeline layout in model
     }
 
 	INFO("Created framebuffers");
@@ -106,10 +193,20 @@ renderer* renderer_create(window* win) {
     vulkan_descriptor_set_layout_builder_add(materialSetLayoutBuilder, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     render->materialSetLayout = vulkan_descriptor_set_layout_builder_build(materialSetLayoutBuilder, render->ctx->device);
 
-    _create_swapchain(render);
+    vulkan_descriptor_set_layout_builder* compositeSetLayoutBuilder = vulkan_descriptor_set_layout_builder_create();
+    vulkan_descriptor_set_layout_builder_add(compositeSetLayoutBuilder, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
+    vulkan_descriptor_set_layout_builder_add(compositeSetLayoutBuilder, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
+    render->compositeSetLayout = vulkan_descriptor_set_layout_builder_build(compositeSetLayoutBuilder, render->ctx->device);
+    render->compositeSetAllocator = vulkan_descriptor_allocator_create(render->ctx->device, render->compositeSetLayout);
+    render->compositeSet = vulkan_descriptor_set_allocate(render->compositeSetAllocator);
 
-    render->gltf = gltf_load_file("models/samples/2.0/Duck/glTF/Duck.gltf");
-    render->model = model_load_from_gltf(render->ctx, render->gltf, render->materialSetLayout, render->pipeline->layout);
+    _create_swapchain(render);
+        
+    vulkan_descriptor_set_write_input_attachment(render->compositeSet, 0, render->accumImage);
+    vulkan_descriptor_set_write_input_attachment(render->compositeSet, 1, render->revealImage);
+
+    render->gltf = gltf_load_file("models/samples/2.0/Sponza/glTF/Sponza.gltf");
+    render->model = model_load_from_gltf(render->ctx, render->gltf, render->materialSetLayout, render->renderPipeline->layout);
 
     return render;
 }
@@ -120,10 +217,13 @@ void _destroy_swapchain(renderer* render, bool destroySwapchain) {
 	}
 	free(render->framebuffers);
 
-    vulkan_image_destroy(render->colorImage);
+    vulkan_image_destroy(render->accumImage);
+    vulkan_image_destroy(render->revealImage);
+    vulkan_image_destroy(render->compositeImage);
     vulkan_image_destroy(render->depthImage);
 
-    vulkan_pipeline_destroy(render->pipeline);
+    vulkan_pipeline_destroy(render->renderPipeline);
+    vulkan_pipeline_destroy(render->compositePipeline);
 	vulkan_renderpass_destroy(render->renderpass);
 
     if (destroySwapchain) {
@@ -139,8 +239,10 @@ void renderer_destroy(renderer* render) {
     gltf_unload(render->gltf);  
 
     vulkan_descriptor_allocator_destroy(render->globalSetAllocator);
+    vulkan_descriptor_allocator_destroy(render->compositeSetAllocator);
     vulkan_descriptor_set_layout_destroy(render->globalSetLayout);
     vulkan_descriptor_set_layout_destroy(render->materialSetLayout);
+    vulkan_descriptor_set_layout_destroy(render->compositeSetLayout);
 
     vkDestroySemaphore(render->ctx->device->device, render->imageAvailable, NULL);
     vkDestroySemaphore(render->ctx->device->device, render->renderFinished, NULL);
@@ -159,10 +261,15 @@ typedef struct {
 
 void _render(VkCommandBuffer cmd, render_info* info) {
     vulkan_renderpass_bind(cmd, info->render->renderpass, info->render->framebuffers[info->swapchainIndex]);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->pipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->renderPipeline->pipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->renderPipeline->layout->layout, 0, 1, &info->render->globalSet->set, 0, NULL);
 
     model_render(info->render->model, cmd);
+
+    vkCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->compositePipeline->pipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, info->render->compositePipeline->layout->layout, 0, 1, &info->render->compositeSet->set, 0, NULL);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
 
     vkCmdEndRenderPass(cmd);
 }

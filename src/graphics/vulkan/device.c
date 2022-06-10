@@ -29,6 +29,8 @@ vulkan_device* vulkan_device_create(vulkan_instance* instance, vulkan_physical_d
     VkPhysicalDeviceFeatures deviceFeatures;
     CLEAR_MEMORY(&deviceFeatures);
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.independentBlend = VK_TRUE;
+    deviceFeatures.sampleRateShading = VK_TRUE;
 
     // Device create info
     VkDeviceCreateInfo createInfo;

@@ -57,3 +57,4 @@ void vulkan_descriptor_set_free(vulkan_descriptor_set* set);
 
 void vulkan_descriptor_set_write_buffer(vulkan_descriptor_set* set, u32 binding, vulkan_buffer* buffer);
 void vulkan_descriptor_set_write_image(vulkan_descriptor_set* set, u32 binding, vulkan_image* image, vulkan_sampler* sampler);
+void vulkan_descriptor_set_write_input_attachment(vulkan_descriptor_set* set, u32 binding, vulkan_image* image);

@@ -72,7 +72,7 @@ VkPipelineRasterizationStateCreateInfo _get_rasterization(vulkan_pipeline_config
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = config->rasterizerCullMode;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.lineWidth = 1.0f;
@@ -82,16 +82,13 @@ VkPipelineRasterizationStateCreateInfo _get_rasterization(vulkan_pipeline_config
 
 VkPipelineMultisampleStateCreateInfo _get_multisampling(vulkan_pipeline_config* config) {
     VkSubpassDescription* subpass = &config->renderpass->subpasses[config->subpass];
-    VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
-    if (subpass->pResolveAttachments) {
-        samples = config->renderpass->attachments[subpass->pDepthStencilAttachment->attachment].samples; // Get the depth stencil attachment and pull the samples out from that
-    }
+    VkSampleCountFlagBits samples = config->samples;
     
     VkPipelineMultisampleStateCreateInfo multisampling;
     CLEAR_MEMORY(&multisampling);
 
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.sampleShadingEnable = VK_TRUE;
     multisampling.rasterizationSamples = samples;
 
     return multisampling;
@@ -111,22 +108,14 @@ VkPipelineDepthStencilStateCreateInfo _get_depth_stencil(vulkan_pipeline_config*
     return depthStencil;
 }
 
-typedef struct {
-    VkPipelineColorBlendAttachmentState attachment;
-    VkPipelineColorBlendStateCreateInfo blend;
-} vulkan_pipeline_blending_info;
+VkPipelineColorBlendStateCreateInfo _get_blending(vulkan_pipeline_config* config) {
+    VkPipelineColorBlendStateCreateInfo blending;
+    CLEAR_MEMORY(&blending);
 
-vulkan_pipeline_blending_info* _get_blending(vulkan_pipeline_config* config) {
-    vulkan_pipeline_blending_info* blending = malloc(sizeof(vulkan_pipeline_blending_info));
-    CLEAR_MEMORY(blending);
-
-    blending->attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    blending->attachment.blendEnable = VK_FALSE;
-
-    blending->blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blending->blend.logicOpEnable = VK_FALSE;
-    blending->blend.attachmentCount = 1;
-    blending->blend.pAttachments = &blending->attachment;
+    blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    blending.logicOpEnable = VK_FALSE;
+    blending.attachmentCount = config->numBlendingAttachments;
+    blending.pAttachments = config->blendingAttachments;
 
     return blending;
 }
@@ -172,7 +161,7 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     VkPipelineRasterizationStateCreateInfo rasterizer = _get_rasterization(config);
     VkPipelineMultisampleStateCreateInfo multisampling = _get_multisampling(config);
     VkPipelineDepthStencilStateCreateInfo depthStencil = _get_depth_stencil(config);
-    vulkan_pipeline_blending_info* blending = _get_blending(config);
+    VkPipelineColorBlendStateCreateInfo blending = _get_blending(config);
     VkSubpassDescription subpass = config->renderpass->subpasses[config->subpass];
 
     vulkan_pipeline_layout_config layoutConfig;
@@ -193,7 +182,7 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     createInfo.pRasterizationState = &rasterizer;
     createInfo.pMultisampleState = &multisampling;
     createInfo.pDepthStencilState = subpass.pDepthStencilAttachment != NULL ? &depthStencil : NULL;
-    createInfo.pColorBlendState = &blending->blend;
+    createInfo.pColorBlendState = &blending;
     createInfo.pDynamicState = NULL;
     createInfo.layout = layout->layout;
     createInfo.renderPass = config->renderpass->renderpass;
@@ -209,7 +198,6 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
 
     free(vertexInfo);
     free(viewportInfo);
-    free(blending);
 
     return pipeline;
 }
@@ -218,4 +206,12 @@ void vulkan_pipeline_destroy(vulkan_pipeline* pipeline) {
     vulkan_pipeline_layout_destroy(pipeline->layout);
     vkDestroyPipeline(pipeline->device->device, pipeline->pipeline, NULL);
     free(pipeline);
+}
+
+VkPipelineColorBlendAttachmentState vulkan_get_default_blending() {
+    VkPipelineColorBlendAttachmentState blending;
+    CLEAR_MEMORY(&blending);
+    blending.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blending.blendEnable = VK_FALSE;
+    return blending;
 }
