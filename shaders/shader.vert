@@ -15,5 +15,5 @@ layout(location = 1) out vec3 fragPosition;
 void main() {
     gl_Position = global.proj * global.view * vec4(inPosition, 1.0);
     fragColorUV = inColorUV;
-    fragPosition = inPosition;
+    fragPosition = gl_Position.xyz;
 }

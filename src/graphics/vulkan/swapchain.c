@@ -3,7 +3,7 @@
 #include "image.h"
 #include "context.h"
 
-VkSurfaceFormatKHR _pick_format(u32 numFormats, VkSurfaceFormatKHR* formats) {
+VkSurfaceFormatKHR pick_format(u32 numFormats, VkSurfaceFormatKHR* formats) {
     for (u32 i = 0; i < numFormats; i++) {
         if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB && formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return formats[i];
@@ -12,11 +12,11 @@ VkSurfaceFormatKHR _pick_format(u32 numFormats, VkSurfaceFormatKHR* formats) {
     return formats[0];
 }
 
-VkPresentModeKHR _pick_mode(u32 numModes, VkPresentModeKHR* modes) {
+VkPresentModeKHR pick_mode(u32 numModes, VkPresentModeKHR* modes) {
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D _pick_extent(VkSurfaceCapabilitiesKHR* capabilities, window* win) {
+VkExtent2D pick_extent(VkSurfaceCapabilitiesKHR* capabilities, window* win) {
     if (capabilities->currentExtent.width != UINT32_MAX) {
         return capabilities->currentExtent;
     } else {
@@ -38,10 +38,10 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_context* ctx, window* win, VkSu
         imageCount = ctx->physical->swapchain_details.capabilities.maxImageCount;
     }
 
-    VkSurfaceFormatKHR format = _pick_format(ctx->physical->swapchain_details.numFormats, ctx->physical->swapchain_details.formats);
+    VkSurfaceFormatKHR format = pick_format(ctx->physical->swapchain_details.numFormats, ctx->physical->swapchain_details.formats);
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx->physical->physical, surface, &ctx->physical->swapchain_details.capabilities);
-    VkExtent2D extent = _pick_extent(&ctx->physical->swapchain_details.capabilities, win);
+    VkExtent2D extent = pick_extent(&ctx->physical->swapchain_details.capabilities, win);
 
     VkSwapchainCreateInfoKHR createInfo;
     CLEAR_MEMORY(&createInfo);
@@ -66,7 +66,7 @@ vulkan_swapchain* vulkan_swapchain_create(vulkan_context* ctx, window* win, VkSu
 
     createInfo.preTransform = ctx->physical->swapchain_details.capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    createInfo.presentMode = _pick_mode(ctx->physical->swapchain_details.numModes, ctx->physical->swapchain_details.modes);
+    createInfo.presentMode = pick_mode(ctx->physical->swapchain_details.numModes, ctx->physical->swapchain_details.modes);
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 

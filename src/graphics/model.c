@@ -23,9 +23,6 @@ model_model* model_load_from_gltf(vulkan_context* ctx, gltf_gltf* gltf, vulkan_d
     model_model* model = malloc(sizeof(model_model));
     model->ctx = ctx;
     model->gltf = gltf;
-    model->pipelineLayout = pipelineLayout;
-    model->materialSetLayout = materialSetLayout;
-    model->materialSetAllocator = vulkan_descriptor_allocator_create(ctx->device, model->materialSetLayout);
 
     // Upload buffers to the GPU
     model->buffers = malloc(sizeof(vulkan_buffer*) * model->gltf->numBuffers);
@@ -55,7 +52,7 @@ model_model* model_load_from_gltf(vulkan_context* ctx, gltf_gltf* gltf, vulkan_d
     }
 
     // Prepare material descriptor sets
-    model->materialSets = malloc(sizeof(vulkan_descriptor_set*) * model->gltf->numMaterials);
+    /*model->materialSets = malloc(sizeof(vulkan_descriptor_set*) * model->gltf->numMaterials);
     CLEAR_MEMORY_ARRAY(model->materialSets, model->gltf->numMaterials);
     model->materialDataBuffers = malloc(sizeof(vulkan_buffer*) * model->gltf->numMaterials);
     CLEAR_MEMORY_ARRAY(model->materialDataBuffers, model->gltf->numMaterials);
@@ -70,7 +67,7 @@ model_model* model_load_from_gltf(vulkan_context* ctx, gltf_gltf* gltf, vulkan_d
         vulkan_descriptor_set_write_buffer(model->materialSets[i], 0, model->materialDataBuffers[i]);
 
         vulkan_descriptor_set_write_image(model->materialSets[i], 1, model->images[model->gltf->materials[i].pbr.baseColorTexture.texture->source->id], model->samplers[model->gltf->materials[i].pbr.baseColorTexture.texture->sampler->id]);
-    }
+    }*/
 
     return model;
 }
@@ -85,19 +82,19 @@ void model_unload(model_model* model) {
     }
     free(model->images);
 
-    for (u32 i = 0; i < model->gltf->numMaterials; i++) {
-        vulkan_buffer_destroy(model->materialDataBuffers[i]);
-        vulkan_descriptor_set_free(model->materialSets[i]);
-    }
-    free(model->materialDataBuffers);
-    free(model->materialSets);
+    // for (u32 i = 0; i < model->gltf->numMaterials; i++) {
+    //     vulkan_buffer_destroy(model->materialDataBuffers[i]);
+    //     vulkan_descriptor_set_free(model->materialSets[i]);
+    // }
+    // free(model->materialDataBuffers);
+    // free(model->materialSets);
 
     for (u32 i = 0; i < model->gltf->numSamplers; i++) {
         vulkan_sampler_destroy(model->samplers[i]);
     }
     free(model->samplers);
 
-    vulkan_descriptor_allocator_destroy(model->materialSetAllocator);
+    // vulkan_descriptor_allocator_destroy(model->materialSetAllocator);
 
     free(model);
 }
@@ -107,7 +104,7 @@ void node_render(gltf_node* node, VkCommandBuffer cmd, model_model* model) {
         for (u32 i = 0; i < node->mesh->numPrimitives; i++) {
             gltf_mesh_primitive* primitive = &node->mesh->primitives[i];
 
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, model->pipelineLayout->layout, 1, 1, &model->materialSets[primitive->material->id]->set, 0, NULL);
+            // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, model->pipelineLayout->layout, 1, 1, &model->materialSets[primitive->material->id]->set, 0, NULL);
 
             // Load vertex and index buffers
             gltf_accessor* accessors[3] = {

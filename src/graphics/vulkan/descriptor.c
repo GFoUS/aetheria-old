@@ -68,7 +68,7 @@ void vulkan_descriptor_allocator_destroy(vulkan_descriptor_allocator* allocator)
     free(allocator);
 }
 
-vulkan_descriptor_pool* _vulkan_descriptor_pool_create(vulkan_device* device, vulkan_descriptor_set_layout* layout) {
+vulkan_descriptor_pool* vulkan_descriptor_pool_create(vulkan_device* device, vulkan_descriptor_set_layout* layout) {
     VkDescriptorPoolSize allPoolSizes[11]; // There are eleven different VkDescriptorTypes
     CLEAR_MEMORY_ARRAY(allPoolSizes, 11);
 
@@ -128,7 +128,7 @@ vulkan_descriptor_set* vulkan_descriptor_set_allocate(vulkan_descriptor_allocato
             allocator->pools = realloc(allocator->pools, sizeof(vulkan_descriptor_pool*) * allocator->numPools);
         }
 
-        allocator->pools[allocator->currentPoolIndex] = _vulkan_descriptor_pool_create(allocator->device, allocator->layout);
+        allocator->pools[allocator->currentPoolIndex] = vulkan_descriptor_pool_create(allocator->device, allocator->layout);
     }
 
     VkDescriptorSetAllocateInfo allocInfo;

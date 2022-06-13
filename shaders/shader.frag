@@ -17,7 +17,7 @@ void main() {
 
     float weight = 
       max(min(1.0, max(max(color.r, color.g), color.b) * color.a), color.a) *
-      clamp(0.03 / (1e-5 + pow(z / 200, 4.0)), 1e-2, 3e3);
+      clamp(0.03 / (1e-5 + pow(fragPosition.z / 200, 4.0)), 1e-2, 3e3);
 
     accum = vec4(color.rgb * color.a, color.a) * weight;
     reveal = color.a;

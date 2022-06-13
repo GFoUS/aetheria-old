@@ -7,7 +7,7 @@ typedef struct {
     VkPipelineVertexInputStateCreateInfo vertexInputInfo;
 } vulkan_pipeline_vertex_info;
 
-vulkan_pipeline_vertex_info* _get_vertex_input(vulkan_pipeline_config* config) {
+vulkan_pipeline_vertex_info* get_vertex_input(vulkan_pipeline_config* config) {
     vulkan_pipeline_vertex_info* vertexInfo = malloc(sizeof(vulkan_pipeline_vertex_info));
     CLEAR_MEMORY(vertexInfo);
 
@@ -22,7 +22,7 @@ vulkan_pipeline_vertex_info* _get_vertex_input(vulkan_pipeline_config* config) {
     return vertexInfo;
 }
 
-VkPipelineInputAssemblyStateCreateInfo _get_input_assembly(vulkan_pipeline_config* config) {
+VkPipelineInputAssemblyStateCreateInfo get_input_assembly(vulkan_pipeline_config* config) {
     VkPipelineInputAssemblyStateCreateInfo inputAssembly;
     CLEAR_MEMORY(&inputAssembly);
 
@@ -39,7 +39,7 @@ typedef struct {
     VkPipelineViewportStateCreateInfo state;
 } vulkan_pipeline_viewport_info;
 
-vulkan_pipeline_viewport_info* _get_viewport_info(vulkan_pipeline_config* config) {
+vulkan_pipeline_viewport_info* get_viewport_info(vulkan_pipeline_config* config) {
     vulkan_pipeline_viewport_info* viewportInfo = malloc(sizeof(vulkan_pipeline_viewport_info));
     CLEAR_MEMORY(viewportInfo);
 
@@ -64,7 +64,7 @@ vulkan_pipeline_viewport_info* _get_viewport_info(vulkan_pipeline_config* config
     return viewportInfo;
 }
 
-VkPipelineRasterizationStateCreateInfo _get_rasterization(vulkan_pipeline_config* config) {
+VkPipelineRasterizationStateCreateInfo get_rasterization(vulkan_pipeline_config* config) {
     VkPipelineRasterizationStateCreateInfo rasterizer;
     CLEAR_MEMORY(&rasterizer);
 
@@ -80,7 +80,7 @@ VkPipelineRasterizationStateCreateInfo _get_rasterization(vulkan_pipeline_config
     return rasterizer;
 }
 
-VkPipelineMultisampleStateCreateInfo _get_multisampling(vulkan_pipeline_config* config) {
+VkPipelineMultisampleStateCreateInfo get_multisampling(vulkan_pipeline_config* config) {
     VkSubpassDescription* subpass = &config->renderpass->subpasses[config->subpass];
     VkSampleCountFlagBits samples = config->samples;
     
@@ -94,7 +94,7 @@ VkPipelineMultisampleStateCreateInfo _get_multisampling(vulkan_pipeline_config* 
     return multisampling;
 }
 
-VkPipelineDepthStencilStateCreateInfo _get_depth_stencil(vulkan_pipeline_config* config) {
+VkPipelineDepthStencilStateCreateInfo get_depth_stencil(vulkan_pipeline_config* config) {
     VkPipelineDepthStencilStateCreateInfo depthStencil;
     CLEAR_MEMORY(&depthStencil);
 
@@ -108,7 +108,7 @@ VkPipelineDepthStencilStateCreateInfo _get_depth_stencil(vulkan_pipeline_config*
     return depthStencil;
 }
 
-VkPipelineColorBlendStateCreateInfo _get_blending(vulkan_pipeline_config* config) {
+VkPipelineColorBlendStateCreateInfo get_blending(vulkan_pipeline_config* config) {
     VkPipelineColorBlendStateCreateInfo blending;
     CLEAR_MEMORY(&blending);
 
@@ -155,13 +155,13 @@ vulkan_pipeline* vulkan_pipeline_create(vulkan_device* device, vulkan_pipeline_c
     VkPipelineShaderStageCreateInfo shaderStages[2];
     shaderStages[0] = vulkan_shader_get_stage_info(config->vertexShader);
     shaderStages[1] = vulkan_shader_get_stage_info(config->fragmentShader);
-    vulkan_pipeline_vertex_info* vertexInfo = _get_vertex_input(config);
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = _get_input_assembly(config);
-    vulkan_pipeline_viewport_info* viewportInfo = _get_viewport_info(config);
-    VkPipelineRasterizationStateCreateInfo rasterizer = _get_rasterization(config);
-    VkPipelineMultisampleStateCreateInfo multisampling = _get_multisampling(config);
-    VkPipelineDepthStencilStateCreateInfo depthStencil = _get_depth_stencil(config);
-    VkPipelineColorBlendStateCreateInfo blending = _get_blending(config);
+    vulkan_pipeline_vertex_info* vertexInfo = get_vertex_input(config);
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = get_input_assembly(config);
+    vulkan_pipeline_viewport_info* viewportInfo = get_viewport_info(config);
+    VkPipelineRasterizationStateCreateInfo rasterizer = get_rasterization(config);
+    VkPipelineMultisampleStateCreateInfo multisampling = get_multisampling(config);
+    VkPipelineDepthStencilStateCreateInfo depthStencil = get_depth_stencil(config);
+    VkPipelineColorBlendStateCreateInfo blending = get_blending(config);
     VkSubpassDescription subpass = config->renderpass->subpasses[config->subpass];
 
     vulkan_pipeline_layout_config layoutConfig;

@@ -2,7 +2,7 @@
 
 #define VK_QUEUE_PRESENT_BIT 0x00000080
 
-vulkan_physical_device* _get_all(vulkan_instance* instance, VkSurfaceKHR surface, u32* numPhysicalDevices) {
+vulkan_physical_device* get_all(vulkan_instance* instance, VkSurfaceKHR surface, u32* numPhysicalDevices) {
     vkEnumeratePhysicalDevices(instance->instance, numPhysicalDevices, NULL);
     VkPhysicalDevice* vkPhysicalDevices = malloc(sizeof(VkPhysicalDevice) * *numPhysicalDevices);
     vkEnumeratePhysicalDevices(instance->instance, numPhysicalDevices, vkPhysicalDevices);
@@ -62,7 +62,7 @@ vulkan_physical_device* _get_all(vulkan_instance* instance, VkSurfaceKHR surface
     return physicalDevices;
 }
 
-bool _has_extensions(vulkan_physical_device* physical, u32 numExtensions, const char** extensions) {
+bool has_extensions(vulkan_physical_device* physical, u32 numExtensions, const char** extensions) {
     // Check extensions
     u32 numAvailableExtensions;
     vkEnumerateDeviceExtensionProperties(physical->physical, NULL, &numAvailableExtensions, NULL);
@@ -86,15 +86,15 @@ bool _has_extensions(vulkan_physical_device* physical, u32 numExtensions, const 
     return true;
 }
 
-bool _supports_swapchain(vulkan_physical_device* physical) {
+bool supports_swapchain(vulkan_physical_device* physical) {
     return physical->swapchain_details.numFormats != 0 && physical->swapchain_details.numModes != 0;
 }
 
-bool _is_suitable(vulkan_physical_device* physical, u32 numExtensions, const char** extensions) {
+bool is_suitable(vulkan_physical_device* physical, u32 numExtensions, const char** extensions) {
     bool queuesComplete = physical->queues.found == (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_PRESENT_BIT);
     return queuesComplete && 
-            _has_extensions(physical, numExtensions, extensions) && 
-            _supports_swapchain(physical) && 
+            has_extensions(physical, numExtensions, extensions) && 
+            supports_swapchain(physical) && 
             physical->features.samplerAnisotropy && 
             physical->features.independentBlend &&
             physical->features.sampleRateShading;
@@ -102,12 +102,12 @@ bool _is_suitable(vulkan_physical_device* physical, u32 numExtensions, const cha
 
 vulkan_physical_device* vulkan_physical_device_create(vulkan_instance* instance, VkSurfaceKHR surface, u32 numExtensions, const char** extensions) {
     u32 numPhysicalDevices;
-    vulkan_physical_device* physicalDevices = _get_all(instance, surface, &numPhysicalDevices);
+    vulkan_physical_device* physicalDevices = get_all(instance, surface, &numPhysicalDevices);
     vulkan_physical_device* physical = malloc(sizeof(vulkan_physical_device));
 
     bool found = false;
     for (u32 i = 0; i < numPhysicalDevices; i++) {
-        if (_is_suitable(&physicalDevices[i], numExtensions, extensions)) {
+        if (is_suitable(&physicalDevices[i], numExtensions, extensions)) {
             memcpy(physical, &physicalDevices[i], sizeof(vulkan_physical_device));
             found = true;
             break;

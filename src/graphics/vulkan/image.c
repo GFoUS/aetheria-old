@@ -3,7 +3,7 @@
 #include "stb_image.h"
 #include "buffer.h"
 
-void _create_image_view(vulkan_image* image, VkImageAspectFlags aspects) {
+void create_image_view(vulkan_image* image, VkImageAspectFlags aspects) {
     VkImageViewCreateInfo createInfo;
     CLEAR_MEMORY(&createInfo);
 
@@ -32,10 +32,10 @@ typedef struct {
     VkImageLayout from;
     VkImageLayout to;
     VkImageAspectFlags aspects;
-} _transition_layout_info;
+} transition_layout_info;
 
-void _transition_layout_body(VkCommandBuffer cmd, void* _info) {
-    _transition_layout_info* info = (_transition_layout_info*)_info;
+void transition_layout_body(VkCommandBuffer cmd, void* _info) {
+    transition_layout_info* info = (transition_layout_info*)_info;
     VkImageMemoryBarrier barrier;
     CLEAR_MEMORY(&barrier);
 
@@ -80,23 +80,23 @@ void _transition_layout_body(VkCommandBuffer cmd, void* _info) {
     );
 }
 
-void _transition_layout(vulkan_image* image, VkImageLayout from, VkImageLayout to, VkImageAspectFlags aspects) {
-    _transition_layout_info info;
+void transition_layout(vulkan_image* image, VkImageLayout from, VkImageLayout to, VkImageAspectFlags aspects) {
+    transition_layout_info info;
     info.image = image;
     info.from = from;
     info.to = to;
     info.aspects = aspects;
 
-    vulkan_context_start_and_execute(image->ctx, NULL, &info, _transition_layout_body);
+    vulkan_context_start_and_execute(image->ctx, NULL, &info, transition_layout_body);
 }
 
 typedef struct {
     vulkan_image* dst;
     vulkan_buffer* src;
-} _copy_buffer_to_image_info;
+} copy_buffer_to_image_info;
 
-void _copy_buffer_to_image_body(VkCommandBuffer cmd, void* _info) {
-    _copy_buffer_to_image_info* info = (_copy_buffer_to_image_info*)_info;
+void copy_buffer_to_image_body(VkCommandBuffer cmd, void* _info) {
+    copy_buffer_to_image_info* info = (copy_buffer_to_image_info*)_info;
     VkBufferImageCopy region;
     CLEAR_MEMORY(&region);
     region.bufferOffset = 0;
@@ -126,11 +126,11 @@ void _copy_buffer_to_image_body(VkCommandBuffer cmd, void* _info) {
     );
 }
 
-void _copy_buffer_to_image(vulkan_image* dst, vulkan_buffer* src) {
-    _copy_buffer_to_image_info info;
+void copy_buffer_to_image(vulkan_image* dst, vulkan_buffer* src) {
+    copy_buffer_to_image_info info;
     info.dst = dst;
     info.src = src;
-    vulkan_context_start_and_execute(dst->ctx, NULL, &info, _copy_buffer_to_image_body);
+    vulkan_context_start_and_execute(dst->ctx, NULL, &info, copy_buffer_to_image_body);
 }
 
 vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageUsageFlags usage, u32 width, u32 height, VkImageAspectFlags aspects, VkSampleCountFlagBits samples) {
@@ -169,7 +169,7 @@ vulkan_image* vulkan_image_create(vulkan_context* ctx, VkFormat format, VkImageU
         FATAL("Vulkan image creation failed with error code: %d", result);
     }
     
-    _create_image_view(image, aspects);
+    create_image_view(image, aspects);
 
     return image;
 }
@@ -218,12 +218,12 @@ vulkan_image* vulkan_image_create_from_file(vulkan_context* ctx, const char* pat
         FATAL("Vulkan image creation failed with error code: %d", result);
     }
 
-    _transition_layout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, aspects);
-    _copy_buffer_to_image(image, buffer);
-    _transition_layout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, aspects);
+    transition_layout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, aspects);
+    copy_buffer_to_image(image, buffer);
+    transition_layout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, aspects);
     vulkan_buffer_destroy(buffer);
 
-    _create_image_view(image, aspects);
+    create_image_view(image, aspects);
 
     return image;
 }
@@ -238,7 +238,7 @@ vulkan_image* vulkan_image_create_from_image(vulkan_context* ctx, VkImage img, V
     image->height = height;
     image->samples = VK_SAMPLE_COUNT_1_BIT;
 
-    _create_image_view(image, aspects);
+    create_image_view(image, aspects);
 
     return image;
 }
@@ -258,9 +258,9 @@ vulkan_image* vulkan_image_get_default_color_texture(vulkan_context* ctx) {
         float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         vulkan_buffer* buffer = vulkan_buffer_create_with_data(ctx, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, sizeof(float) * 4, (void*)white);
 
-        _transition_layout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
-        _copy_buffer_to_image(image, buffer);
-        _transition_layout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+        transition_layout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+        copy_buffer_to_image(image, buffer);
+        transition_layout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     return image;
